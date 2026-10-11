@@ -1,0 +1,25 @@
+# Settings that depend on the data frequency.
+#   pandas_freq       pandas offset alias that dates must be aligned to
+#   min_series_length hard floor: a series with fewer observations fails the input contract
+#   default_horizon   used when no horizon is given
+#   season_length     periods in one seasonal cycle (1 = no seasonality, used by seasonal models)
+yearly:
+  pandas_freq: "YS"
+  min_series_length: 3
+  default_horizon: 3
+  season_length: 1
+monthly:
+  pandas_freq: "MS"
+  min_series_length: 3
+  default_horizon: 12
+  season_length: 12
+weekly:
+  pandas_freq: "W-MON"
+  min_series_length: 3
+  default_horizon: 12
+  season_length: 52
+daily:
+  pandas_freq: "D"
+  min_series_length: 3
+  default_horizon: 14
+  season_length: 7

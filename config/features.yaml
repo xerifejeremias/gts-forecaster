@@ -1,0 +1,63 @@
+# Feature sets. A model asks for one in config/models.yaml with `features: <name>`.
+# Models that create their own features (StatsForecast, Prophet, Orbit) do not need a feature set.
+# MLForecast models make their own lags and rolling windows (set in the model params), so give them a
+# set WITHOUT lags: calendar_only or global_static, which add only calendar and identifier features.
+#
+# Per set:
+#   calendar        all | a list of names | empty. Which calendar features to add. Names that do not
+#                   exist for the current frequency are skipped (see features/calendar_features.py), so one
+#                   set works for yearly, monthly, weekly and daily data.
+#   fourier_order   number of sine/cosine pairs for the yearly (and, daily data, weekly) cycle. 0 = none.
+#   lags            lag_k = the target k periods earlier. Integers, or `season` / `2*season` for one
+#                   or two season lengths of the current frequency (monthly 12, weekly 52, daily 7).
+#   rolling_windows window sizes (>= 2) of rolling statistics of the target. Integers or `season`.
+#   rolling_stats   mean | std | min | max | median
+#   rolling_lag     the rolling windows end this many periods before the row (1 = the previous period).
+#
+# Forecasting several steps ahead: a lag k (or rolling_lag) smaller than the forecast step needs values
+# that are not known yet, so those features are empty for later steps. A model that predicts directly
+# should use lags and a rolling_lag that are at least the horizon.
+
+calendar:
+  # Country whose public holidays count as non-business days, for example PT or US. Needs the
+  # optional `holidays` package (poetry install --extras holidays). null = no country holidays.
+  holiday_country: null
+  # Extra non-business days (YYYY-MM-DD), for example company closures.
+  extra_holidays: []
+  # Does a date mark the start or the end of its period? (monthly 2024-03-01 = March 2024: start)
+  period_anchor: start
+
+sets:
+  # Calendar features only (no target history), safe for any horizon.
+  calendar_only:
+    calendar: all
+    fourier_order: 2
+
+  # Calendar plus target history, for models that predict a whole horizon directly.
+  # Edit the lags and windows to be at least your horizon.
+  calendar_and_history:
+    calendar: all
+    fourier_order: 2
+    lags: [season, 2*season]
+    rolling_windows: [3, season]
+    rolling_stats: [mean, std]
+    rolling_lag: 1
+
+  # Global models: identify which market, product category and company a series belongs to, plus
+  # statistics of the group it belongs to. Needs `static_columns` in default.yaml.
+  # (Edit the column names and code lengths to your own data.)
+  global_static:
+    calendar: all
+    fourier_order: 2
+    static:
+      # "DE04" -> market_p2 = "DE";  "F0101" -> product_p1 = "F" and product_p3 = "F01"
+      code_parts:
+        market: [2]
+        product: [1, 3]
+      identifiers: [market, product, company, product_p1]
+      encoding: ordinal            # ordinal (one integer code per category) | onehot (one 0/1 column each)
+      group_stats:
+        # a group is every series that shares the value(s); a list means the combination
+        by: [market, product, company, product_p1, [market, product_p1]]
+        stats: [mean, rel_level, n_series]   # mean median std n_series rel_level growth
+      series_stats: [mean, std, trend, season_strength]   # mean std cv length trend zero_share season_strength

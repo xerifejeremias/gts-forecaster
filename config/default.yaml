@@ -1,0 +1,114 @@
+# Default run settings. Anything here can be overridden from the command line or in code.
+
+# Which data folder to use: yearly | monthly | weekly | daily
+frequency: monthly
+
+# Forecast horizon, in periods of the chosen frequency.
+# null = use default_horizon from frequency_profiles.yaml
+horizon: null
+
+# Input file. {frequency} is replaced with the frequency above. Relative to the project root.
+data_path: "data/{frequency}/{frequency}_synthetic.csv"
+
+# Explanatory columns that must be present in the input file (besides uuid, date, target).
+explanatory_columns: [x_temp, x_promo, x_price]
+
+# Static columns: input columns that identify a series (for example market, product category,
+# company). Each series has exactly one text value per column. They are not part of the time series;
+# feature sets in config/features.yaml can turn them into features for global models.
+# Default: none. The synthetic data has these three.
+static_columns: [market, product, company]
+
+# Missing data handling (see OVERVIEW.md, "Missing data handling").
+# A run of consecutive missing periods up to this length is filled
+# (forward fill at the end of a series, linear interpolation in the middle).
+max_fill_periods: 3
+# Longer runs skip the models. The forecast is then the last observed value, or 0:
+# last_value | zero
+fallback: last_value
+
+# Backtest and model selection (see OVERVIEW.md, "Backtest pipeline").
+# Performance metric used to rank models for each series: mae | rmse | mape | smape | wape | mase
+metric: mae
+# Number of rolling-origin folds, and the distance between fold cutoffs in periods.
+# backtest_step: null = use the horizon, so test windows do not overlap.
+n_folds: 3
+backtest_step: null
+# 1 = use the single best model per series. N > 1 = ensemble of the N best models per series.
+top_n: 3
+# How ensemble members are weighted: equal | inverse_error (better backtest score = more weight)
+ensemble_weights: equal
+# Series with too little history to be backtested get a fixed ensemble:
+# the first `short_series_n` models of this list that the series has enough data for.
+short_series_models: [naive, seasonal_naive, drift]
+short_series_n: 2
+# Where selection.json and backtest_scores.csv are written: <registry_dir>/<frequency>/
+registry_dir: registry
+# Where the forecasts vs actuals of every backtest window are saved: <backtesting_dir>/<frequency>/
+backtesting_dir: backtesting
+
+# Explanatory variables whose FUTURE values you know in advance (for example planned promotions).
+# Any explanatory column not listed here is assumed unknown in the future. Default: none.
+known_future_columns: []
+# CSV with the future values of those columns: columns `date`, the known columns and, optionally,
+# `uuid` (without `uuid`, the same values apply to every series). It must cover every forecast date.
+# {frequency} is replaced. Can also be given on the command line (--future-features).
+future_features_path: null
+
+# Outlier handling in the TRAINING data (see OVERVIEW.md, "Outlier handling").
+# mad = robust detection per series. none = off.
+outlier_method: mad
+# How many robust standard deviations away a point must be to count as an outlier.
+# 5 flags only severe outliers; lower it to flag more.
+outlier_threshold: 5.0
+# If more than this share of a series would be flagged, the series is left unchanged
+# (that looks like a level shift, not outliers).
+outlier_max_share: 0.1
+# What a flagged point is replaced with:
+#   clip         the threshold bound it crossed (expected value +/- threshold x spread): a value far
+#                above the maximum bound becomes the maximum bound, far below the minimum becomes the
+#                minimum bound. It stays a high or low value, just not an extreme one.
+#   interpolate  linear interpolation between its neighbours
+#   median       the median of the series
+#   mean         the mean of the series
+outlier_action: clip
+
+# true (default): models marked slow (Prophet, Orbit) are neither backtested nor run.
+# false: they are included. Command line: --no-fast-only
+fast_only: true
+
+# Run controls (mostly set on the command line for quick test runs):
+#   models: [lightgbm, auto_ets]   run only these candidate models (null = all). The baselines the
+#                                  selection needs (naive and the short_series_models) always run.
+#   exclude_models: [xgboost]      leave these out
+#   max_series: 20                 run only a spread-out sample of that many series (null = all)
+# A run with any of these set is a partial run: backtest results go to <registry_dir>/<frequency>_partial/
+# so a full selection.json is never replaced by a test run.
+models: null
+exclude_models: []
+max_series: null
+# skip: a model that fails is left out and reported in the run summary, the rest continue.
+# raise: the first failure stops the run.
+on_model_error: skip
+
+# How `forecast` gets its models:
+#   frozen_selection: refit the models named in selection.json on the newest data (default)
+#   frozen_models:    use the models saved by `poetry run train`, without refitting. Faster, and
+#                     the forecast uses exactly the models that were trained and checked.
+forecast_mode: frozen_selection
+# Where `train` saves the fitted models: <fitted_models_dir>/<frequency>/
+fitted_models_dir: fitted_models
+
+# Final file for the receiving platform, written by `forecast` to outputs/<frequency>/<output_file>.
+# Long format, one row per series and forecast date: uuid, date, <static_columns>, forecast.
+# Only the final (ensemble) forecast; no prediction intervals (decided 2026-10-05).
+output_file: forecast_output.csv
+# Optional new column names, e.g. {uuid: unique_id, date: ds, market: market_code, product: product_code}
+output_rename: {}
+# Lowest allowed forecast. Volumes cannot be negative, so every model's predictions (backtest and
+# forecast) and the final forecast are raised to at least this value. null = no floor.
+forecast_floor: 0
+# `poetry run run-pipeline` keeps a record of every run in <runs_dir>/<frequency>/<run id>/:
+# run.log, manifest.json (settings, versions, input file fingerprint, step timings and errors),
+# a copy of the config files and of the outputs it produced.
+runs_dir: runs

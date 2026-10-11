@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+outputs/
+registry/*/models/
+runs/
+fitted_models/
+backtesting/
+first_run_log.txt
+benchmarks/
+*.egg-info/
+dist/
+.claude/settings.local.json

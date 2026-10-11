@@ -1,0 +1,82 @@
+# Candidate models. The name is what appears in selection.json.
+#   type      which model class to use (see MODEL_TYPES in models/catalog.py)
+#   params    optional parameters for that class
+#   features  optional: name of a feature set in config/features.yaml (models that use feature columns)
+# season_length and freq are filled in from the frequency profile for models that take them.
+# A model whose library is not installed is skipped with a warning (the extra is named in it).
+
+# Baselines (no extra needed)
+naive:
+  type: naive
+seasonal_naive:
+  type: seasonal_naive
+drift:
+  type: drift
+
+# StatsForecast (poetry install --extras stats). One model per series.
+auto_ets:
+  type: auto_ets
+auto_arima:
+  type: auto_arima
+auto_theta:
+  type: auto_theta
+mstl:
+  type: mstl          # needs a seasonal period, so it is skipped for yearly data
+
+# MLForecast global models (poetry install --extras ml). One model for all series, trained on lags and
+# rolling windows of the target (MLForecast builds those: set `lags`, `rolling_windows`,
+# `rolling_stats`, `date_features`, `target_transforms`, `regressor_params` under params).
+# `features` adds calendar features (and, for the *_static models, identifier features); the set must
+# not define lags. Explanatory columns listed in `known_future_columns` are used automatically.
+# `skip_without_static: true` leaves the model out, with a warning, when there are no static_columns.
+lightgbm:
+  type: lightgbm
+  features: calendar_only
+lightgbm_static:
+  type: lightgbm
+  features: global_static
+  skip_without_static: true
+xgboost:
+  type: xgboost
+  features: calendar_only
+xgboost_static:
+  type: xgboost
+  features: global_static
+  skip_without_static: true
+random_forest:
+  type: random_forest
+  features: calendar_only
+ridge:
+  type: ridge
+  features: calendar_only
+lasso:
+  type: lasso
+  features: calendar_only
+
+# Pretrained foundation models (poetry install --extras foundation): zero-shot, no training, CPU.
+# The weights are downloaded from Hugging Face the first time. Chronos-2 uses the explanatory columns
+# in `known_future_columns` and, with use_past_covariates: true, the other explanatory columns as
+# past-only covariates. Chronos-Bolt is univariate. `max_context` limits the history given to the model.
+chronos2:
+  type: chronos2                     # amazon/chronos-2, 120M parameters
+chronos2_small:
+  type: chronos2
+  params:
+    model_id: autogluon/chronos-2-small   # 28M parameters, faster
+chronos_bolt_small:
+  type: chronos_bolt                 # amazon/chronos-bolt-small
+chronos_bolt_tiny:
+  type: chronos_bolt
+  params:
+    model_id: amazon/chronos-bolt-tiny
+
+# Slow per-series models: only run with fast_only: false (--no-fast-only). They fit one model per
+# series (seconds each). Explanatory columns in `known_future_columns` are used as regressors.
+# options passes extra arguments to the library, for example for prophet:
+#   options: {seasonality_mode: multiplicative, changepoint_prior_scale: 0.1}
+prophet:                              # poetry install --extras prophet
+  type: prophet
+orbit_dlt:                            # poetry install --extras orbit
+  type: orbit_dlt
+orbit_lgt:
+  type: orbit_lgt

@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GTS Forecast Report</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f6f3;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #7b7a74;
+  --line: #e3e2dc;
+  --grid: #ebeae4;
+  --hist: #2a78d6;
+  --fc: #eb6834;
+  --fc-bg: rgba(235, 104, 52, 0.08);
+  --focus: #2a78d6;
+  --chip: #efeee9;
+  --m1: #1baf7a; --m2: #eda100; --m3: #e87ba4; --m4: #008300; --m5: #4a3aa7; --m6: #e34948;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --ink-3: #96958b;
+    --line: #2f2f2c; --grid: #2a2a28; --hist: #3987e5; --fc: #d95926;
+    --fc-bg: rgba(217, 89, 38, 0.14); --focus: #3987e5; --chip: #262624;
+    --m1: #199e70; --m2: #c98500; --m3: #d55181; --m4: #008300; --m5: #9085e9; --m6: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --ink-3: #96958b;
+  --line: #2f2f2c; --grid: #2a2a28; --hist: #3987e5; --fc: #d95926;
+  --fc-bg: rgba(217, 89, 38, 0.14); --focus: #3987e5; --chip: #262624;
+  --m1: #199e70; --m2: #c98500; --m3: #d55181; --m4: #008300; --m5: #9085e9; --m6: #e66767;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding-inline: 16px; padding-block: 20px 40px;
+}
+main > * { min-width: 0; }
+main { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { color: var(--ink-2); font-size: 13px; }
+button, select {
+  font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-height: 34px;
+}
+button { cursor: pointer; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.controls { display: grid; gap: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.field { display: grid; gap: 3px; min-width: 0; }
+.field label, .lbl { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.field select { max-width: 100%; min-width: 150px; }
+#seriesField { width: 100%; max-width: 560px; grid-template-columns: minmax(0, 1fr); }
+#seriesField .row { align-items: stretch; }
+#seriesSel { flex: 1 1 0; width: 0; min-width: 0; }
+.seg { display: inline-flex; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 8px 8px 0; }
+.count { color: var(--ink-2); font-size: 13px; padding-bottom: 7px; }
+h2 { font-size: 16px; margin: 0; text-wrap: balance; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: flex-start; margin-bottom: 10px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.kpi { background: var(--chip); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.kpi .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.kpi .s { color: var(--ink-2); font-size: 12px; }
+.rangebar { margin-top: 2px; }
+.rangebar input[type=range] { display: block; width: 100%; margin: 0; accent-color: var(--hist); height: 28px; cursor: ew-resize; }
+.rangebar .rl { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; color: var(--ink-2); font-size: 12px; }
+.rangebar .rl button { padding: 2px 8px; min-height: 26px; font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--ink-2); font-size: 13px; margin-top: 8px; }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.chartwrap { position: relative; width: 100%; }
+svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+svg text { fill: var(--ink-2); font-size: 11px; font-variant-numeric: tabular-nums; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  white-space: nowrap; z-index: 2; font-variant-numeric: tabular-nums;
+}
+.tip b { display: block; }
+.note { color: var(--ink-2); font-size: 12px; margin-top: 8px; }
+.empty { padding: 40px 10px; text-align: center; color: var(--ink-2); }
+.tablewrap { max-height: 380px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { position: sticky; top: 0; background: var(--surface); font-size: 12px; color: var(--ink-2); }
+tr.fc td { background: var(--fc-bg); }
+.msel { position: relative; }
+.msel summary { list-style: none; cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 10px; min-height: 34px; display: flex; align-items: center; gap: 8px; min-width: 210px; }
+.msel summary::-webkit-details-marker { display: none; }
+.msel summary::after { content: "\25BE"; margin-left: auto; color: var(--ink-2); }
+.msel[open] summary { border-color: var(--ink-2); }
+.msel summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.menu { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: min(340px, calc(100vw - 32px)); max-height: 340px; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.18); }
+.menu .tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.menu .tools button { padding: 3px 8px; min-height: 28px; font-size: 12px; }
+.menu label.opt { text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--ink); display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-radius: 6px; cursor: pointer; }
+.menu label.opt:hover { background: var(--chip); }
+.menu .sw { width: 16px; height: 0; border-top: 3px solid; flex: none; }
+.menu .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.menu .w { color: var(--ink-2); font-size: 12px; white-space: nowrap; }
+.models { color: var(--ink-2); font-size: 13px; margin-top: 8px; overflow-wrap: anywhere; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 14px; color: var(--ink-2); font-weight: 600; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); background: none; }
+h3 { font-size: 14px; margin: 18px 0 6px; }
+#tabAccuracy .seg { flex-wrap: wrap; row-gap: 4px; }
+.acc-table td.best { font-weight: 700; }
+.acc-table td.bad { color: var(--m6); }
+.acc-table tr.total td { background: var(--chip); font-weight: 600; }
+.acc-table th { cursor: default; }
+.seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+footer { color: var(--ink-3); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Forecast report</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <button id="theme" type="button" aria-label="Change colour theme">Theme: auto</button>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button type="button" role="tab" data-tab="forecast" aria-selected="true">Forecast</button>
+    <button type="button" role="tab" data-tab="accuracy" aria-selected="false">Accuracy</button>
+  </nav>
+
+  <section class="panel controls" aria-label="Selection">
+    <div class="row" id="filters"></div>
+    <div class="row">
+      <div class="field">
+        <span class="lbl">Show</span>
+        <div class="seg" id="mode">
+          <button type="button" data-mode="aggregate">Total of selection</button>
+          <button type="button" data-mode="series">Single series</button>
+        </div>
+      </div>
+      <div class="field" id="seriesField" hidden>
+        <label for="seriesSel">Series</label>
+        <div class="row" style="gap:6px;flex-wrap:nowrap">
+          <button type="button" id="prev" aria-label="Previous series">&lsaquo;</button>
+          <select id="seriesSel"></select>
+          <button type="button" id="next" aria-label="Next series">&rsaquo;</button>
+        </div>
+      </div>
+      <div class="field" id="modelField" hidden>
+        <span class="lbl" id="modelLbl">Forecast lines</span>
+        <details class="msel" id="msel">
+          <summary id="msum" aria-labelledby="modelLbl"></summary>
+          <div class="menu" id="menu"></div>
+        </details>
+      </div>
+      <div class="count" id="count"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Chart" id="tabForecast">
+    <div class="head">
+      <div>
+        <h2 id="title"></h2>
+        <div class="sub" id="subtitle"></div>
+      </div>
+      <div class="row" style="gap:6px">
+        <div class="seg" id="viewseg">
+          <button type="button" data-view="chart">Chart</button>
+          <button type="button" data-view="table">Table</button>
+        </div>
+        <button type="button" id="csv">Download CSV</button>
+      </div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="chartwrap" id="chartwrap"></div>
+    <div class="rangebar" id="rangebar">
+      <input type="range" id="range" min="0" max="0" step="1" value="0" aria-label="First date of history to show: drag right to show less history, left to show more">
+      <div class="rl"><span id="rlabel"></span><button type="button" id="rall">Show all history</button></div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="models" id="models"></div>
+    <div class="note" id="notes"></div>
+  </section>
+
+  <section class="panel" aria-label="Accuracy" id="tabAccuracy" hidden>
+    <div class="head">
+      <div>
+        <h2 id="accTitle">Accuracy</h2>
+        <div class="sub" id="accSub"></div>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <div class="field"><span class="lbl">Forecasts</span>
+        <div class="seg" id="accSource">
+          <button type="button" data-v="backtest" title="Out-of-sample forecasts of the backtest folds">Backtest</button>
+          <button type="button" data-v="live" title="Forecasts of earlier runs whose actuals have now arrived">Live (earlier runs)</button>
+        </div>
+      </div>
+      <div class="field"><span class="lbl">Metric</span>
+        <div class="seg" id="accMetric"></div>
+      </div>
+      <div class="field"><span class="lbl">Totals per</span>
+        <div class="seg" id="accPeriod"></div>
+      </div>
+      <div class="field"><label for="accOrigin">Forecast made at</label>
+        <select id="accOrigin"></select>
+      </div>
+    </div>
+    <div class="note" id="accInfo"></div>
+    <div id="accBody">
+      <h3>Actuals vs forecast</h3>
+      <div class="chartwrap" id="accChart"></div>
+      <div class="legend" id="accLegend"></div>
+      <h3>Error over time</h3>
+      <div class="sub" id="accDriftSub"></div>
+      <div class="chartwrap" id="accDrift"></div>
+      <div class="legend" id="accDriftLegend"></div>
+      <h3>Error by group</h3>
+      <div class="row" style="margin-bottom:8px"><div class="seg" id="accGroup"></div></div>
+      <div class="tablewrap" id="accTableWrap"></div>
+      <div class="note" id="accNotes"></div>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</main>
+
+<script>
+const DATA = /*__GTS_REPORT_DATA__*/null;
+(function () {
+  "use strict";
+  const META = DATA.meta, SERIES = DATA.series, DATES = DATA.dates, NH = DATA.n_history;
+  const NF = DATES.length - NH, DIMS = META.dimensions || [];
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const $ = (id) => document.getElementById(id);
+  const state = { filters: {}, mode: DIMS.length ? "aggregate" : "series", seriesId: null, view: "chart", models: new Set(), final: true, start: 0,
+    tab: "forecast", accSource: "backtest", accMetric: "WAPE", accPeriod: "native", accOrigin: "all", accGroup: "total" };
+  const ACC = DATA.accuracy || null;
+  // the model list of the "Forecast lines" menu: models in the forecast and/or in the accuracy data
+  const MODEL_NAMES = [...new Set([...(META.model_names || []), ...((ACC && ACC.models) || [])])];
+  for (const s of SERIES) s.model_fc = s.model_fc || {};
+  const FINAL = "Final forecast";
+  const MCOLORS = ["var(--m1)", "var(--m2)", "var(--m3)", "var(--m4)", "var(--m5)", "var(--m6)"];
+  const mColor = (name) => MCOLORS[MODEL_NAMES.indexOf(name) % MCOLORS.length];
+  const mDash = (name) => (Math.floor(MODEL_NAMES.indexOf(name) / MCOLORS.length) % 2 ? "5 3" : "");
+  const selectedModels = () => MODEL_NAMES.filter((n) => state.models.has(n));
+
+  /* ---------- formatting ---------- */
+  function fmtDate(iso, long) {
+    const y = iso.slice(0, 4), m = +iso.slice(5, 7);
+    if (META.frequency === "yearly") return y;
+    if (META.frequency === "monthly") return MONTHS[m - 1] + " " + y;
+    return long ? iso : iso.slice(2);
+  }
+  function fmtNum(v) {
+    if (v == null || !isFinite(v)) return "–";
+    const a = Math.abs(v);
+    const d = a >= 1000 ? 0 : a >= 100 ? 1 : a >= 1 ? 2 : 3;
+    return v.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: 0 });
+  }
+  function fmtAxis(v) {
+    const a = Math.abs(v);
+    if (a >= 1e9) return +(v / 1e9).toPrecision(3) + "B";
+    if (a >= 1e6) return +(v / 1e6).toPrecision(3) + "M";
+    if (a >= 1e4) return +(v / 1e3).toPrecision(3) + "k";
+    return (+v.toPrecision(4)).toLocaleString("en-US");
+  }
+  function sum(arr) { let s = 0, n = 0; for (const v of arr) if (v != null) { s += v; n++; } return n ? s : null; }
+  function lastIdx(arr) { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return i; return -1; }
+
+  /* ---------- selection ---------- */
+  function matching() {
+    return SERIES.filter((s) => DIMS.every((d) => !state.filters[d] || s.dims[d] === state.filters[d]));
+  }
+  function label(s) {
+    const d = DIMS.map((k) => s.dims[k]).filter(Boolean).join(" · ");
+    return (d ? d + " — " : "") + s.id.slice(0, 8);
+  }
+  function compute() {
+    const m = matching();
+    if (!m.length) return null;
+    if (state.mode === "series") {
+      const s = m.find((x) => x.id === state.seriesId) || m[0];
+      state.seriesId = s.id;
+      return { hist: s.hist, fc: s.fc, hcnt: s.hist.map((v) => (v == null ? 0 : 1)), fcnt: s.fc.map((v) => (v == null ? 0 : 1)), n: 1, series: s, matched: m, lines: modelLines([s], true) };
+    }
+    const hist = new Array(NH).fill(null), fc = new Array(NF).fill(null);
+    const hcnt = new Array(NH).fill(0), fcnt = new Array(NF).fill(0);
+    for (const s of m) {
+      for (let i = 0; i < NH; i++) { const v = s.hist[i]; if (v != null) { hist[i] = (hist[i] || 0) + v; hcnt[i]++; } }
+      for (let i = 0; i < NF; i++) { const v = s.fc[i]; if (v != null) { fc[i] = (fc[i] || 0) + v; fcnt[i]++; } }
+    }
+    return { hist, fc, hcnt, fcnt, n: m.length, series: null, matched: m, lines: modelLines(m, false) };
+  }
+  // One line per selected model. In a total, a series that has no forecast from that model
+  // contributes its final forecast, so the line stays comparable with the final total.
+  function modelLines(m, single) {
+    return selectedModels().map((name) => {
+      const vals = new Array(NF).fill(null);
+      let have = 0;
+      for (const s of m) {
+        const mf = s.model_fc[name];
+        if (mf) have++;
+        if (!mf && single) continue;
+        for (let i = 0; i < NF; i++) {
+          const v = mf && mf[i] != null ? mf[i] : s.fc[i];
+          if (v != null) vals[i] = (vals[i] || 0) + v;
+        }
+      }
+      return { name, vals, have, total: m.length };
+    });
+  }
+  function titleText() {
+    if (state.mode === "series") return null;
+    const parts = DIMS.map((d) => d + ": " + (state.filters[d] || "all"));
+    return DIMS.length && DIMS.some((d) => state.filters[d]) ? "Total · " + parts.join(" · ") : "Total · all series";
+  }
+
+  /* ---------- controls ---------- */
+  function buildFilters() {
+    const box = $("filters");
+    box.textContent = "";
+    for (const d of DIMS) {
+      const values = [...new Set(SERIES.map((s) => s.dims[d]))].sort();
+      const f = document.createElement("div"); f.className = "field";
+      const l = document.createElement("label"); l.textContent = d; l.htmlFor = "f_" + d;
+      const sel = document.createElement("select"); sel.id = "f_" + d;
+      sel.add(new Option("All (" + values.length + ")", ""));
+      for (const v of values) sel.add(new Option(v, v));
+      sel.addEventListener("change", () => { state.filters[d] = sel.value; refresh(); });
+      f.append(l, sel); box.append(f);
+    }
+    if (!DIMS.length) {
+      const p = document.createElement("div"); p.className = "sub";
+      p.textContent = "No identifier columns (market, product, company ...) are configured, so only single series can be shown.";
+      box.append(p);
+    }
+  }
+  function fillSeriesSelect(m) {
+    const sel = $("seriesSel");
+    const keep = state.seriesId;
+    sel.textContent = "";
+    for (const s of m) sel.add(new Option(label(s), s.id));
+    sel.value = m.some((s) => s.id === keep) ? keep : m[0].id;
+    state.seriesId = sel.value;
+  }
+
+  /* ---------- chart ---------- */
+  function niceTicks(lo, hi, count) {
+    if (lo === hi) { lo -= 1; hi += 1; }
+    const raw = (hi - lo) / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((s) => s >= raw);
+    const start = Math.floor(lo / step) * step, out = [];
+    for (let v = start; v <= hi + step * 0.999; v += step) out.push(+v.toPrecision(12));
+    return out;
+  }
+  const UNIT = { yearly: "year", monthly: "month", weekly: "week", daily: "day" }[META.frequency] || "period";
+  const f1 = (n) => n.toFixed(1);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+  let hover = null;
+
+  function drawChart(c) {
+    const wrap = $("chartwrap");
+    // First history period shown: the slider position, but never before the series' first value.
+    const first = Math.max(0, c.hist.findIndex((v) => v != null));
+    const i0 = Math.max(first, Math.min(state.start, NH - 2));
+    const all = c.hist.slice(i0).concat(state.final ? c.fc : [], ...c.lines.map((l) => l.vals)).filter((v) => v != null);
+    if (!all.length) { wrap.innerHTML = '<div class="empty">No values to show.</div>'; return; }
+    const W = Math.max(280, wrap.clientWidth), H = W < 520 ? 280 : 360;
+    let lo = Math.min(...all), hi = Math.max(...all);
+    if (lo >= 0 && lo <= 0.4 * hi) lo = 0;
+    const pad = (hi - lo) * 0.06 || Math.abs(hi) * 0.1 || 1;
+    const ticks = niceTicks(lo >= 0 && lo === 0 ? 0 : lo - pad, hi + pad, 5);
+    const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+    const ml = 8 + Math.max(...ticks.map((t) => fmtAxis(t).length)) * 6.6, mr = 14, mt = 22, mb = 28;
+    const pw = W - ml - mr, ph = H - mt - mb, n = NH + NF;
+    const span = n - 1 - i0;
+    const X = (i) => ml + (span <= 0 ? pw / 2 : ((i - i0) * pw) / span);
+    const Y = (v) => mt + ph - ((v - y0) / (y1 - y0)) * ph;
+
+    const segs = (arr, offset) => {
+      const out = []; let cur = [];
+      arr.forEach((v, i) => { if (v == null) { if (cur.length) out.push(cur), cur = []; } else cur.push([offset + i, v]); });
+      if (cur.length) out.push(cur);
+      return out;
+    };
+    const d = (pts) => pts.map((p, k) => (k ? "L" : "M") + f1(X(p[0])) + " " + f1(Y(p[1]))).join("");
+    const histSegs = segs(c.hist.map((v, i) => (i < i0 ? null : v)), 0);
+    const fromLast = (arr) => {  // forecast segments, the first joined to the last actual value
+      const out = segs(arr, NH);
+      if (c.hist[NH - 1] != null && out.length && out[0][0][0] === NH) out[0].unshift([NH - 1, c.hist[NH - 1]]);
+      return out;
+    };
+    const fcSegs = state.final ? fromLast(c.fc) : [];
+
+    let s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' +
+      (state.mode === "series" ? "Actuals and forecast of one series" : "Total actuals and forecast") +
+      '. Use the Table button for the numbers.">';
+    // forecast region
+    const fx = X(NH - 1);
+    s += '<rect x="' + f1(fx) + '" y="' + mt + '" width="' + f1(ml + pw - fx) + '" height="' + ph + '" fill="var(--fc-bg)"/>';
+    for (const t of ticks) {
+      s += '<line x1="' + ml + '" x2="' + (ml + pw) + '" y1="' + f1(Y(t)) + '" y2="' + f1(Y(t)) + '" stroke="var(--grid)"/>';
+      s += '<text x="' + (ml - 6) + '" y="' + f1(Y(t) + 4) + '" text-anchor="end">' + fmtAxis(t) + "</text>";
+    }
+    const every = Math.max(1, Math.ceil(Math.max(span, 1) / (W < 520 ? 4 : 8)));
+    const tickAt = [i0];
+    for (let i = n - 1; i > i0; i -= every) if (X(i) - X(i0) > 64) tickAt.push(i);
+    for (const i of tickAt) {
+      s += '<text x="' + f1(X(i)) + '" y="' + (H - 8) + '" text-anchor="' + (i === i0 ? "start" : i === n - 1 ? "end" : "middle") + '">' + fmtDate(DATES[i]) + "</text>";
+    }
+    s += '<line x1="' + f1(fx) + '" x2="' + f1(fx) + '" y1="' + mt + '" y2="' + (mt + ph) + '" stroke="var(--ink-3)" stroke-dasharray="3 3"/>';
+    if (ml + pw - fx > 70) {  // enough room for the labels; the legend names the colours anyway
+      s += '<text x="' + f1(fx - 6) + '" y="' + (mt - 8) + '" text-anchor="end">Actual</text>';
+      s += '<text x="' + f1(fx + 6) + '" y="' + (mt - 8) + '">Forecast</text>';
+    }
+    for (const p of histSegs) {
+      s += p.length === 1 ? '<circle cx="' + f1(X(p[0][0])) + '" cy="' + f1(Y(p[0][1])) + '" r="2.5" fill="var(--hist)"/>'
+        : '<path d="' + d(p) + '" fill="none" stroke="var(--hist)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+    for (const l of c.lines) {
+      const dash = mDash(l.name) ? ' stroke-dasharray="' + mDash(l.name) + '"' : "";
+      for (const p of fromLast(l.vals)) {
+        if (p.length > 1) s += '<path d="' + d(p) + '" fill="none" stroke="' + mColor(l.name) + '" stroke-width="1.6"' + dash + ' stroke-linejoin="round" stroke-linecap="round"/>';
+      }
+    }
+    for (const p of fcSegs) {
+      s += p.length === 1 ? '<circle cx="' + f1(X(p[0][0])) + '" cy="' + f1(Y(p[0][1])) + '" r="2.5" fill="var(--fc)"/>'
+        : '<path d="' + d(p) + '" fill="none" stroke="var(--fc)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+    s += '<line id="cross" y1="' + mt + '" y2="' + (mt + ph) + '" stroke="var(--ink-2)" stroke-width="1" visibility="hidden"/>';
+    s += '<circle id="dot" r="4.5" fill="var(--surface)" stroke-width="2" visibility="hidden"/>';
+    s += '<rect id="hit" x="' + ml + '" y="' + mt + '" width="' + pw + '" height="' + ph + '" fill="transparent"/>';
+    s += "</svg>";
+    wrap.innerHTML = s + '<div class="tip" id="tip" hidden></div>';
+
+    // The slider sits under the x axis and lines up with the plot area.
+    const rng = $("range"), shown = NH - i0;
+    rng.max = Math.max(0, NH - 2); rng.value = Math.min(state.start, +rng.max);
+    rng.style.marginLeft = ml + "px"; rng.style.width = pw + "px";
+    $("rlabel").textContent = "History from " + fmtDate(DATES[i0], true) + " \u00b7 " + shown + " " + UNIT + (shown === 1 ? "" : "s") + " shown";
+    $("rall").hidden = state.start === 0;
+    const hit = $("hit"), tip = $("tip"), cross = $("cross"), dot = $("dot");
+    const valueAt = (i) => (i < NH ? c.hist[i] : c.fc[i - NH]);
+    function show(ev) {
+      const box = hit.getBoundingClientRect();
+      const px = ((ev.clientX - box.left) / box.width) * pw;
+      let i = Math.round(i0 + (px / pw) * span);
+      i = Math.max(i0, Math.min(n - 1, i));
+      const v = valueAt(i), isFc = i >= NH, cnt = isFc ? c.fcnt[i - NH] : c.hcnt[i];
+      cross.setAttribute("x1", f1(X(i))); cross.setAttribute("x2", f1(X(i))); cross.setAttribute("visibility", "visible");
+      if (v != null && (!isFc || state.final)) {
+        dot.setAttribute("cx", f1(X(i))); dot.setAttribute("cy", f1(Y(v)));
+        dot.setAttribute("stroke", isFc ? "var(--fc)" : "var(--hist)"); dot.setAttribute("visibility", "visible");
+      } else dot.setAttribute("visibility", "hidden");
+      let html = "<b>" + fmtDate(DATES[i], true) + "</b>";
+      if (!isFc) html += "Actual: " + fmtNum(v);
+      else {
+        if (state.final) html += '<span style="color:var(--fc)">\u25CF</span> ' + FINAL + ": " + fmtNum(v);
+        for (const l of c.lines) html += '<br><span style="color:' + mColor(l.name) + '">\u25CF</span> ' + esc(l.name) + ": " + fmtNum(l.vals[i - NH]);
+      }
+      if (c.n > 1) html += "<br>" + cnt + " of " + c.n + " series";
+      tip.innerHTML = html; tip.hidden = false;
+      const wb = wrap.getBoundingClientRect(), x = X(i) * (wb.width / W);
+      tip.style.left = Math.min(Math.max(4, x + 12), wb.width - tip.offsetWidth - 4) + "px";
+      tip.style.top = "8px";
+    }
+    function hide() { cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); tip.hidden = true; }
+    hit.addEventListener("pointermove", show);
+    hit.addEventListener("pointerdown", show);
+    hit.addEventListener("pointerleave", hide);
+  }
+
+  function drawTable(c) {
+    const wrap = $("chartwrap");
+    let h = '<div class="tablewrap" id="tw"><table><thead><tr><th>Period</th><th>Actual</th>' + (state.final ? "<th>" + FINAL + "</th>" : "") +
+      c.lines.map((l) => "<th>" + esc(l.name) + "</th>").join("") +
+      (c.n > 1 ? "<th>Series</th>" : "") + "</tr></thead><tbody>";
+    for (let i = 0; i < DATES.length; i++) {
+      const fc = i >= NH, v = fc ? c.fc[i - NH] : c.hist[i], cnt = fc ? c.fcnt[i - NH] : c.hcnt[i];
+      h += "<tr" + (fc ? ' class="fc"' : "") + "><td>" + fmtDate(DATES[i], true) + "</td><td>" + (fc ? "" : fmtNum(v)) + "</td>" +
+        (state.final ? "<td>" + (fc ? fmtNum(v) : "") + "</td>" : "") +
+        c.lines.map((l) => "<td>" + (fc ? fmtNum(l.vals[i - NH]) : "") + "</td>").join("") + (c.n > 1 ? "<td>" + cnt + " / " + c.n + "</td>" : "") + "</tr>";
+    }
+    wrap.innerHTML = h + "</tbody></table></div>";
+    const tw = $("tw"), row = tw.querySelectorAll("tbody tr")[Math.max(0, NH - 3)];
+    if (row) tw.scrollTop = row.offsetTop - 40;
+  }
+
+  function drawKpis(c) {
+    const li = lastIdx(c.hist), f = sum(c.fc), prev = NH >= NF ? sum(c.hist.slice(NH - NF)) : null;
+    const change = f != null && prev ? ((f - prev) / Math.abs(prev)) * 100 : null;
+    const cards = [
+      ["Last actual", li >= 0 ? fmtNum(c.hist[li]) : "–", li >= 0 ? fmtDate(DATES[li], true) : ""],
+      ["Forecast, next " + NF + " periods", fmtNum(f), "sum"],
+      ["Actual, previous " + NF + " periods", fmtNum(prev), "sum"],
+      ["Change", change == null ? "–" : (change > 0 ? "+" : "") + change.toFixed(1) + "%", "forecast vs previous"],
+    ];
+    $("kpis").innerHTML = cards.map((k) => '<div class="kpi"><div class="s">' + k[0] + '</div><div class="v">' + k[1] + '</div><div class="s">' + k[2] + "</div></div>").join("");
+  }
+
+  /* ---------- page ---------- */
+  function refresh() {
+    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === state.tab)));
+    $("tabForecast").hidden = state.tab !== "forecast";
+    $("tabAccuracy").hidden = state.tab !== "accuracy";
+    const c = compute();
+    document.querySelectorAll("#mode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+    document.querySelectorAll("#viewseg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
+    $("mode").querySelector('[data-mode="aggregate"]').disabled = !DIMS.length;
+    $("seriesField").hidden = state.mode !== "series";
+    const m = matching();
+    $("count").textContent = m.length + " of " + SERIES.length + " series selected";
+    if (!c) {
+      $("title").textContent = "No series match this selection";
+      $("subtitle").textContent = ""; $("kpis").textContent = ""; $("models").textContent = ""; $("notes").textContent = "";
+      $("chartwrap").innerHTML = '<div class="empty">Choose a different combination.</div>';
+      return;
+    }
+    if (state.mode === "series") fillSeriesSelect(m);
+    const s = c.series;
+    $("title").textContent = s ? label(s) : titleText();
+    $("subtitle").textContent = s ? "Single series · " + s.id : c.n + " series added up";
+    drawKpis(c);
+    if (state.tab === "accuracy") {
+      updateMenu(c);
+      drawAccuracy();
+      return;
+    }
+    if (state.view === "table") drawTable(c); else drawChart(c);
+    drawLegend(c);
+    updateMenu(c);
+    $("legend").hidden = state.view === "table";
+    $("rangebar").hidden = state.view === "table";
+    const models = s && s.models.length ? "Forecast from: " + s.models.map((x) => x.name + " " + Math.round(x.weight * 100) + "%").join(" · ") : "";
+    $("models").textContent = s && s.fallback ? "Fallback forecast: this series had too many missing periods for the models." : models;
+    const notes = [];
+    if (!s) {
+      const fb = c.matched.filter((x) => x.fallback).length;
+      if (fb) notes.push(fb + " of the " + c.n + " series use a fallback forecast (too many missing periods).");
+      if (c.hcnt.some((k) => k > 0 && k < c.n)) notes.push("Some series have no value in some periods (they start later or have gaps), so those totals cover fewer series. Hover over the chart or open the Table to see how many.");
+    }
+    for (const l of c.lines) {
+      if (c.series && !l.have) notes.push(l.name + " has no forecast for this series.");
+      else if (!c.series && l.have < l.total) notes.push(l.name + ": " + (l.total - l.have) + " of " + l.total + " series have no forecast from this model, so their final forecast is used in its total.");
+    }
+    $("notes").textContent = notes.join(" ");
+  }
+
+  function drawLegend(c) {
+    let h = '<span><i style="background:var(--hist)"></i>Actual</span>';
+    if (state.final) h += '<span><i style="background:var(--fc);height:4px"></i>' + FINAL + "</span>";
+    for (const l of c.lines) h += '<span><i style="background:' + mColor(l.name) + '"></i>' + esc(l.name) + "</span>";
+    $("legend").innerHTML = h;
+  }
+
+  /* ---------- model dropdown (several can be shown at once) ---------- */
+  function buildMenu() {
+    if (!MODEL_NAMES.length) return;
+    $("modelField").hidden = false;
+    const menu = $("menu");
+    const tools = document.createElement("div"); tools.className = "tools";
+    const mk = (text, fn) => { const b = document.createElement("button"); b.type = "button"; b.textContent = text; b.addEventListener("click", fn); tools.append(b); };
+    mk("Ensemble members", () => {
+      // single series: its models; total: every model used by at least one selected series
+      const s = currentSeries(), pool = s ? [s] : matching();
+      state.models = new Set(pool.flatMap((x) => x.models.map((m) => m.name)).filter((n) => MODEL_NAMES.includes(n)));
+      syncChecks(); refresh();
+    });
+    mk("All models", () => { state.models = new Set(MODEL_NAMES); syncChecks(); refresh(); });
+    mk("None", () => { state.models = new Set(); syncChecks(); refresh(); });
+    menu.append(tools);
+    const add = (key, text, color, dash) => {
+      const l = document.createElement("label"); l.className = "opt";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.dataset.key = key;
+      cb.addEventListener("change", () => {
+        if (key === FINAL) state.final = cb.checked; else if (cb.checked) state.models.add(key); else state.models.delete(key);
+        refresh();
+      });
+      const sw = document.createElement("span"); sw.className = "sw"; sw.style.borderTopColor = color; if (dash) sw.style.borderTopStyle = "dashed";
+      const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = text;
+      const w = document.createElement("span"); w.className = "w"; w.dataset.w = key;
+      l.append(cb, sw, nm, w); menu.append(l);
+    };
+    add(FINAL, FINAL + " (ensemble)", "var(--fc)", false);
+    for (const n of MODEL_NAMES) add(n, n, mColor(n), mDash(n));
+    syncChecks();
+    document.addEventListener("click", (e) => { const d = $("msel"); if (d.open && !d.contains(e.target)) d.open = false; });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("msel").open = false; });
+  }
+  function currentSeries() {
+    if (state.mode !== "series") return null;
+    return SERIES.find((x) => x.id === state.seriesId) || null;
+  }
+  function syncChecks() {
+    document.querySelectorAll("#menu input[type=checkbox]").forEach((cb) => { cb.checked = cb.dataset.key === FINAL ? state.final : state.models.has(cb.dataset.key); });
+  }
+  function updateMenu(c) {
+    if (!MODEL_NAMES.length) return;
+    const used = {};
+    if (c.series) for (const x of c.series.models) used[x.name] = Math.round(x.weight * 100) + "% of final";
+    const m = c.matched;
+    document.querySelectorAll("#menu [data-w]").forEach((el) => {
+      const k = el.dataset.w;
+      if (k === FINAL) { el.textContent = ""; return; }
+      if (c.series) el.textContent = c.series.model_fc[k] ? used[k] || "" : "n/a";
+      else { const have = m.filter((s) => s.model_fc[k]).length; el.textContent = have < m.length ? have + "/" + m.length + " series" : ""; }
+    });
+    const n = state.models.size;
+    $("msum").textContent = (state.final ? "Final forecast" : "No final line") + (n ? " + " + n + " model" + (n > 1 ? "s" : "") : "");
+  }
+
+  function downloadCsv() {
+    const c = compute(); if (!c) return;
+    const q = (t) => '"' + String(t).replace(/"/g, '""') + '"';
+    const rows = [["date", "actual", "final_forecast", ...c.lines.map((l) => q(l.name))].join(",")];
+    for (let i = 0; i < DATES.length; i++) {
+      const fc = i >= NH, v = fc ? c.fc[i - NH] : c.hist[i], e = (x) => (x == null ? "" : x);
+      rows.push([DATES[i], fc ? "" : e(v), fc ? e(v) : "", ...c.lines.map((l) => (fc ? e(l.vals[i - NH]) : ""))].join(","));
+    }
+    const blob = new Blob([rows.join("\n") + "\n"], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (c.series ? c.series.id : "total") + ".csv";
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  /* ---------- accuracy tab ---------- */
+  const FKEY = "__final__";
+  const METRICS = {
+    MAE: { pct: false, help: "mean absolute error" },
+    RMSE: { pct: false, help: "root mean squared error" },
+    MAPE: { pct: true, help: "mean absolute percentage error (periods with actual 0 are left out)" },
+    sMAPE: { pct: true, help: "symmetric MAPE" },
+    WAPE: { pct: true, help: "sum of absolute errors / sum of actuals" },
+    Bias: { pct: true, help: "sum of (forecast - actual) / sum of actuals: above 0 = over-forecast" },
+  };
+  const PERIODS = {
+    native: { label: { daily: "Day", weekly: "Week", monthly: "Month", yearly: "Year" }[META.frequency] || "Period", rank: 0 },
+    week: { label: "Week", rank: 1 }, month: { label: "Month", rank: 2 }, quarter: { label: "Quarter", rank: 3 }, year: { label: "Year", rank: 4 },
+  };
+  const NATIVE_RANK = { daily: 0, weekly: 1, monthly: 2, yearly: 4 }[META.frequency] ?? 0;
+  const SERIES_INDEX = new Map(SERIES.map((s, i) => [s.id, i]));
+
+  function bucket(iso) {
+    const p = state.accPeriod;
+    if (p === "native") return iso;
+    const y = iso.slice(0, 4), m = +iso.slice(5, 7);
+    if (p === "year") return y;
+    if (p === "quarter") return y + "-Q" + Math.ceil(m / 3);
+    if (p === "month") return iso.slice(0, 7);
+    const d = new Date(iso + "T00:00:00Z"), dow = (d.getUTCDay() + 6) % 7;  // week: its Monday
+    d.setUTCDate(d.getUTCDate() - dow);
+    return d.toISOString().slice(0, 10);
+  }
+  function bucketLabel(key) {
+    const p = state.accPeriod;
+    if (p === "native") return fmtDate(key, true);
+    if (p === "month") return MONTHS[+key.slice(5, 7) - 1] + " " + key.slice(0, 4);
+    if (p === "week") return "wk " + key;
+    return key;
+  }
+  function accLines() {
+    const lines = [];
+    if (state.final) lines.push({ key: FKEY, name: FINAL, color: "var(--fc)", width: 2.6 });
+    for (const n of selectedModels()) if (ACC.models.includes(n)) lines.push({ key: n, name: n, color: mColor(n), dash: mDash(n), width: 1.6 });
+    if (!lines.length) lines.push({ key: FKEY, name: FINAL, color: "var(--fc)", width: 2.6 });
+    return lines;
+  }
+  function accSeriesSet() {
+    const m = matching();
+    if (state.mode === "series") {
+      const s = m.find((x) => x.id === state.seriesId) || m[0];
+      return s ? new Set([SERIES_INDEX.get(s.id)]) : new Set();
+    }
+    return new Set(m.map((s) => SERIES_INDEX.get(s.id)));
+  }
+  // forecast of `key` in row r; a model without a forecast for that row uses the final forecast
+  function value(src, key, r) {
+    const own = src.f[key] ? src.f[key][r] : null;
+    return own != null ? own : src.f[FKEY][r];
+  }
+  // Adds up actuals and forecasts per cell (key from keyFn), the "cumulative" totals of a period.
+  function cells(src, rows, keyFn, lines) {
+    const out = new Map();
+    for (const r of rows) {
+      const a = src.a[r];
+      if (a == null) continue;
+      const k = keyFn(r);
+      let c = out.get(k);
+      if (!c) { c = { a: 0, f: {}, n: 0 }; for (const l of lines) c.f[l.key] = 0; out.set(k, c); }
+      c.a += a; c.n++;
+      for (const l of lines) { const v = value(src, l.key, r); if (v != null) c.f[l.key] += v; }
+    }
+    return out;
+  }
+  function metricOf(list, key) {  // list of cells
+    if (!list.length) return null;
+    let sa = 0, se = 0, sae = 0, sq = 0, ape = 0, nape = 0, sape = 0, nsape = 0;
+    for (const c of list) {
+      const a = c.a, f = c.f[key], e = f - a;
+      sa += Math.abs(a); se += e; sae += Math.abs(e); sq += e * e;
+      if (a !== 0) { ape += Math.abs(e) / Math.abs(a); nape++; }
+      if (Math.abs(a) + Math.abs(f) > 0) { sape += 2 * Math.abs(e) / (Math.abs(a) + Math.abs(f)); nsape++; }
+    }
+    switch (state.accMetric) {
+      case "MAE": return sae / list.length;
+      case "RMSE": return Math.sqrt(sq / list.length);
+      case "MAPE": return nape ? (100 * ape) / nape : null;
+      case "sMAPE": return nsape ? (100 * sape) / nsape : null;
+      case "WAPE": return sa ? (100 * sae) / sa : null;
+      case "Bias": return sa ? (100 * se) / sa : null;
+    }
+    return null;
+  }
+  const fmtMetric = (v) => (v == null || !isFinite(v) ? "–" : METRICS[state.accMetric].pct ? (state.accMetric === "Bias" && v > 0 ? "+" : "") + v.toFixed(1) + "%" : fmtNum(v));
+
+  function accRows(src, useOrigin) {
+    const keep = accSeriesSet(), out = [];
+    const o = useOrigin && state.accOrigin !== "all" ? +state.accOrigin : null;
+    for (let r = 0; r < src.s.length; r++) if (keep.has(src.s[r]) && (o == null || src.o[r] === o)) out.push(r);
+    return out;
+  }
+
+  // a simple line chart with hover, used by the accuracy charts
+  function lineChart(wrapId, labels, lines, opts) {
+    const wrap = $(wrapId);
+    const all = lines.flatMap((l) => l.vals).concat((opts.refs || []).map((r) => r.value)).filter((v) => v != null && isFinite(v));
+    if (!labels.length || !all.length) { wrap.innerHTML = '<div class="empty">No values for this selection.</div>'; return; }
+    const W = Math.max(280, wrap.clientWidth), H = W < 520 ? 240 : 300, n = labels.length;
+    let lo = Math.min(...all), hi = Math.max(...all);
+    if (opts.zero && lo >= 0 && lo <= 0.5 * hi) lo = 0;
+    if (opts.zero && hi <= 0 && hi >= 0.5 * lo) hi = 0;
+    const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.1 || 1;
+    const ticks = niceTicks(lo === 0 ? 0 : lo - pad, hi + pad, 5), y0 = ticks[0], y1 = ticks[ticks.length - 1];
+    const fmtY = opts.pct ? (t) => (+t.toPrecision(4)) + "%" : fmtAxis;
+    const ml = 12 + Math.max(...ticks.map((t) => fmtY(t).length)) * 7.2, mr = 14, mt = 12, mb = 28;
+    const pw = W - ml - mr, ph = H - mt - mb;
+    const X = (i) => ml + (n === 1 ? pw / 2 : (i * pw) / (n - 1)), Y = (v) => mt + ph - ((v - y0) / (y1 - y0)) * ph;
+    let s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(opts.aria || "chart") + '">';
+    for (const t of ticks) {
+      s += '<line x1="' + ml + '" x2="' + (ml + pw) + '" y1="' + f1(Y(t)) + '" y2="' + f1(Y(t)) + '" stroke="var(--grid)"/>';
+      s += '<text x="' + (ml - 6) + '" y="' + f1(Y(t) + 4) + '" text-anchor="end">' + fmtY(t) + "</text>";
+    }
+    if (y0 < 0 && y1 > 0) s += '<line x1="' + ml + '" x2="' + (ml + pw) + '" y1="' + f1(Y(0)) + '" y2="' + f1(Y(0)) + '" stroke="var(--ink-3)"/>';
+    const every = Math.max(1, Math.ceil(n / (W < 520 ? 4 : 7)));
+    for (let i = n - 1; i >= 0; i -= every) {
+      s += '<text x="' + f1(X(i)) + '" y="' + (H - 8) + '" text-anchor="' + (n === 1 ? "middle" : i === n - 1 ? "end" : i === 0 ? "start" : "middle") + '">' + esc(labels[i]) + "</text>";
+    }
+    for (const r of opts.refs || []) {
+      if (r.value == null || !isFinite(r.value)) continue;
+      s += '<line x1="' + ml + '" x2="' + (ml + pw) + '" y1="' + f1(Y(r.value)) + '" y2="' + f1(Y(r.value)) + '" stroke="' + r.color + '" stroke-width="1.2" stroke-dasharray="2 4"/>';
+    }
+    for (const l of lines) {
+      let d = "", pen = false;
+      l.vals.forEach((v, i) => { if (v == null || !isFinite(v)) { pen = false; return; } d += (pen ? "L" : "M") + f1(X(i)) + " " + f1(Y(v)); pen = true; });
+      const dash = l.dash ? ' stroke-dasharray="' + l.dash + '"' : "";
+      if (d) s += '<path d="' + d + '" fill="none" stroke="' + l.color + '" stroke-width="' + (l.width || 2) + '"' + dash + ' stroke-linejoin="round" stroke-linecap="round"/>';
+      if (opts.points || n < 3) l.vals.forEach((v, i) => { if (v != null && isFinite(v)) s += '<circle cx="' + f1(X(i)) + '" cy="' + f1(Y(v)) + '" r="3" fill="' + l.color + '"/>'; });
+    }
+    s += '<line class="cross" y1="' + mt + '" y2="' + (mt + ph) + '" stroke="var(--ink-2)" visibility="hidden"/>';
+    s += '<rect class="hit" x="' + ml + '" y="' + mt + '" width="' + pw + '" height="' + ph + '" fill="transparent"/></svg>';
+    wrap.innerHTML = s + '<div class="tip" hidden></div>';
+    const hit = wrap.querySelector(".hit"), tip = wrap.querySelector(".tip"), cross = wrap.querySelector(".cross");
+    const fmtV = opts.pct ? (v) => (v == null || !isFinite(v) ? "–" : v.toFixed(1) + "%") : fmtNum;
+    function show(ev) {
+      const box = hit.getBoundingClientRect();
+      const i = Math.max(0, Math.min(n - 1, Math.round(((ev.clientX - box.left) / box.width) * (n - 1))));
+      cross.setAttribute("x1", f1(X(i))); cross.setAttribute("x2", f1(X(i))); cross.setAttribute("visibility", "visible");
+      let h = "<b>" + esc(labels[i]) + "</b>";
+      for (const l of lines) h += '<span style="color:' + l.color + '">\u25CF</span> ' + esc(l.name) + ": " + fmtV(l.vals[i]) + "<br>";
+      if (opts.extra) h += opts.extra(i);
+      tip.innerHTML = h; tip.hidden = false;
+      const wb = wrap.getBoundingClientRect(), x = X(i) * (wb.width / W);
+      tip.style.left = Math.min(Math.max(4, x + 12), wb.width - tip.offsetWidth - 4) + "px"; tip.style.top = "8px";
+    }
+    hit.addEventListener("pointermove", show); hit.addEventListener("pointerdown", show);
+    hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); tip.hidden = true; });
+  }
+  function legendHtml(items) {
+    return items.map((l) => '<span><i style="background:' + l.color + (l.dashed ? ";background:repeating-linear-gradient(90deg," + l.color + " 0 4px,transparent 4px 7px)" : "") + '"></i>' + esc(l.name) + "</span>").join("");
+  }
+
+  function buildAccuracyControls() {
+    const seg = (id, items, key) => {
+      const box = $(id);
+      box.textContent = "";
+      for (const [v, text, title] of items) {
+        const b = document.createElement("button"); b.type = "button"; b.dataset.v = v; b.textContent = text;
+        if (title) b.title = title;
+        b.addEventListener("click", () => { state[key] = v; refresh(); });
+        box.append(b);
+      }
+    };
+    seg("accMetric", Object.keys(METRICS).map((k) => [k, k, METRICS[k].help]), "accMetric");
+    seg("accPeriod", Object.entries(PERIODS).filter(([k, p]) => k === "native" || p.rank > NATIVE_RANK).map(([k, p]) => [k, p.label]), "accPeriod");
+    seg("accGroup", [["total", "Total"], ...DIMS.map((d) => [d, "By " + d]), ["series", "By series"]], "accGroup");
+    document.querySelectorAll("#accSource button").forEach((b) => b.addEventListener("click", () => { state.accSource = b.dataset.v; state.accOrigin = "all"; refresh(); }));
+    $("accOrigin").addEventListener("change", (e) => { state.accOrigin = e.target.value; refresh(); });
+  }
+
+  function drawAccuracy() {
+    const press = (id, v) => document.querySelectorAll("#" + id + " button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+    if (!ACC) {
+      $("accInfo").textContent = "No accuracy data: run the backtest (and later run-pipeline runs) and build the report again.";
+      $("accBody").hidden = true;
+      return;
+    }
+    const sources = ACC.sources;
+    if (!sources[state.accSource]) state.accSource = sources.backtest ? "backtest" : "live";
+    document.querySelectorAll("#accSource button").forEach((b) => {
+      b.disabled = !sources[b.dataset.v];
+      if (b.disabled) b.title = b.dataset.v === "live" ? "No forecast of an earlier run-pipeline run has actuals yet" : "No backtest forecasts found";
+    });
+    press("accSource", state.accSource); press("accMetric", state.accMetric); press("accPeriod", state.accPeriod); press("accGroup", state.accGroup);
+    const src = sources[state.accSource], live = state.accSource === "live";
+    const originWord = live ? "Run with data to " : "Backtest cutoff ";
+    const sel = $("accOrigin");
+    sel.textContent = "";
+    sel.add(new Option(live ? "All runs" : "All folds", "all"));
+    src.origins.forEach((o, k) => sel.add(new Option(originWord + fmtDate(o, true), String(k))));
+    sel.value = state.accOrigin;
+    const lines = accLines(), pct = METRICS[state.accMetric].pct;
+    const m = matching();
+    const who = state.mode === "series" ? label(m.find((x) => x.id === state.seriesId) || m[0] || { id: "", dims: {} }) : titleText();
+    $("accTitle").textContent = "Accuracy · " + who;
+    $("accSub").textContent = (live ? "Forecasts delivered by earlier runs, compared with the actuals that came in since." :
+      "Out-of-sample forecasts of the backtest" + (ACC.backtest_file ? " (" + ACC.backtest_file + ")" : "") + ".") +
+      " Actuals and forecasts are added up per " + PERIODS[state.accPeriod].label.toLowerCase() + (state.mode === "series" ? "" : " over the selected series") + " before the error is computed.";
+    $("accInfo").textContent = state.accMetric + ": " + METRICS[state.accMetric].help + ".";
+    $("accBody").hidden = false;
+    if (!m.length) { $("accChart").innerHTML = '<div class="empty">No series match this selection.</div>'; return; }
+
+    // 1. actuals vs forecast, per period; with several origins the newest forecast of each date
+    const rows = accRows(src, true);
+    const newest = new Map();
+    for (const r of rows) { const k = src.s[r] + "|" + src.d[r]; const prev = newest.get(k); if (prev == null || src.o[r] > src.o[prev]) newest.set(k, r); }
+    const chartCells = cells(src, [...newest.values()], (r) => bucket(ACC.dates[src.d[r]]), lines);
+    const keys = [...chartCells.keys()].sort();
+    const labels = keys.map(bucketLabel);
+    lineChart("accChart", labels, [
+      { name: "Actual", color: "var(--hist)", width: 2.2, vals: keys.map((k) => chartCells.get(k).a) },
+      ...lines.map((l) => ({ name: l.name, color: l.color, dash: l.dash, width: l.width, vals: keys.map((k) => chartCells.get(k).f[l.key]) })),
+    ], { zero: true, points: keys.length < 40, aria: "Actuals and forecasts per period" });
+    $("accLegend").innerHTML = legendHtml([{ name: "Actual", color: "var(--hist)" }, ...lines]);
+
+    // 2. error per forecast origin: does the accuracy get worse over time?
+    const all = accRows(src, false);
+    const perOrigin = cells(src, all, (r) => src.o[r] + "|" + bucket(ACC.dates[src.d[r]]), lines);
+    const groups = src.origins.map(() => []);
+    for (const [k, c] of perOrigin) groups[+k.split("|")[0]].push(c);
+    const refs = [];
+    if (live && sources.backtest) {  // backtest level of the same selection, as a dashed reference line
+      const bt = sources.backtest, btRows = accRows(bt, false);
+      const btCells = [...cells(bt, btRows, (r) => bt.o[r] + "|" + bucket(ACC.dates[bt.d[r]]), lines).values()];
+      for (const l of lines) refs.push({ name: l.name + " (backtest)", color: l.color, value: metricOf(btCells, l.key) });
+    }
+    lineChart("accDrift", src.origins.map((o) => fmtDate(o, true)),
+      lines.map((l) => ({ name: l.name, color: l.color, dash: l.dash, width: l.width, vals: groups.map((g) => metricOf(g, l.key)) })),
+      { pct, points: true, refs, zero: state.accMetric !== "Bias", aria: state.accMetric + " per forecast origin" });
+    $("accDriftSub").textContent = state.accMetric + " of the forecasts made at each " + (live ? "run (by the date its data ended)" : "backtest cutoff") +
+      ". A rising line means the models are getting worse" + (live ? "; dashed lines show the backtest level of the same models. Clearly above it: run the backtest again and refit." : ". The Live view shows the same for the forecasts that were really delivered.");
+    $("accDriftLegend").innerHTML = legendHtml([...lines, ...(refs.length ? [{ name: "backtest level", color: "var(--ink-3)", dashed: true }] : [])]);
+
+    // 3. error by group (market, product, company or series): cumulative per period within the group
+    const g = state.accGroup;
+    const groupOf = g === "total" ? () => "All selected" : g === "series" ? (r) => SERIES[src.s[r]].id : (r) => SERIES[src.s[r]].dims[g] || "(none)";
+    const byGroup = new Map();
+    for (const [k, c] of cells(src, rows, (r) => groupOf(r) + "\u0001" + src.o[r] + "|" + bucket(ACC.dates[src.d[r]]), lines)) {
+      const name = k.split("\u0001")[0];
+      if (!byGroup.has(name)) byGroup.set(name, []);
+      byGroup.get(name).push(c);
+    }
+    const seriesIn = new Map();
+    for (const r of rows) { const name = groupOf(r); if (!seriesIn.has(name)) seriesIn.set(name, new Set()); seriesIn.get(name).add(src.s[r]); }
+    let table = [...byGroup.entries()].map(([name, list]) => ({
+      name, n: seriesIn.get(name).size, actual: list.reduce((t, c) => t + c.a, 0),
+      vals: lines.map((l) => metricOf(list, l.key)),
+    }));
+    const score = (v) => (v == null ? -Infinity : state.accMetric === "Bias" ? Math.abs(v) : v);
+    table.sort((x, y) => score(y.vals[0]) - score(x.vals[0]));
+    const shown = table.slice(0, 300);
+    let h = '<table class="acc-table"><thead><tr><th>' + (g === "total" ? "Selection" : g === "series" ? "Series" : esc(g)) + "</th><th>Series</th><th>Actual (sum)</th>" +
+      lines.map((l) => "<th>" + esc(l.name) + "</th>").join("") + "</tr></thead><tbody>";
+    for (const row of shown) {
+      const best = Math.min(...row.vals.map((v) => (v == null ? Infinity : score(v))));
+      const series = g === "series" ? SERIES[SERIES_INDEX.get(row.name)] : null;
+      const rowLabel = series ? esc(label(series)) : esc(row.name);
+      h += "<tr><td>" + rowLabel + "</td><td>" + row.n + "</td><td>" + fmtNum(row.actual) + "</td>" +
+        row.vals.map((v) => '<td class="' + (lines.length > 1 && v != null && score(v) === best ? "best" : "") + '">' + fmtMetric(v) + "</td>").join("") + "</tr>";
+    }
+    $("accTableWrap").innerHTML = h + "</tbody></table>";
+    const notes = [];
+    if (table.length > shown.length) notes.push("Showing the " + shown.length + " groups with the largest error of " + lines[0].name + " (of " + table.length + ").");
+    if (lines.length > 1) notes.push("Bold: the best line in each row.");
+    for (const l of lines) {
+      if (l.key === FKEY) continue;
+      let miss = 0;
+      for (const r of rows) if (!src.f[l.key] || src.f[l.key][r] == null) miss++;
+      if (miss) notes.push(l.name + " has no forecast for " + miss + " of " + rows.length + " values; the final forecast is used there.");
+    }
+    if (!live && state.final) notes.push("Backtest: the final forecast is rebuilt with today's selection, which was chosen on these same folds, so it looks better here than it will live.");
+    if (state.accPeriod !== "native") notes.push("The first and last " + PERIODS[state.accPeriod].label.toLowerCase() + " can be only partly covered by the forecasts; actuals and forecasts always cover the same dates.");
+    if (ACC.note) notes.push(ACC.note + ".");
+    $("accNotes").textContent = notes.join(" ");
+  }
+
+  function init() {
+    $("sub").textContent = META.frequency + " · history to " + fmtDate(META.cutoff, true) + " · " +
+      NF + "-period forecast · " + META.n_series + " series · generated " + META.generated;
+    $("foot").textContent = "Totals add up the series that match the selection. Generated by GTS Forecaster" +
+      (META.metric ? " · selection metric: " + META.metric : "") + ".";
+    buildFilters();
+    buildMenu();
+    buildAccuracyControls();
+    document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => { state.tab = b.dataset.tab; refresh(); }));
+    let resizeRaf = 0;
+    window.addEventListener("resize", () => { cancelAnimationFrame(resizeRaf); resizeRaf = requestAnimationFrame(() => { if (state.tab === "accuracy") refresh(); }); });
+    document.querySelectorAll("#mode button").forEach((b) => b.addEventListener("click", () => { state.mode = b.dataset.mode; refresh(); }));
+    document.querySelectorAll("#viewseg button").forEach((b) => b.addEventListener("click", () => { state.view = b.dataset.view; refresh(); }));
+    $("seriesSel").addEventListener("change", (e) => { state.seriesId = e.target.value; refresh(); });
+    const step = (k) => { const m = matching(); if (!m.length) return; const i = m.findIndex((x) => x.id === state.seriesId); state.seriesId = m[(i + k + m.length) % m.length].id; refresh(); };
+    $("prev").addEventListener("click", () => step(-1));
+    $("next").addEventListener("click", () => step(1));
+    $("csv").addEventListener("click", downloadCsv);
+    let raf = 0;
+    $("range").addEventListener("input", (e) => {
+      state.start = +e.target.value;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(refresh);
+    });
+    $("rall").addEventListener("click", () => { state.start = 0; refresh(); });
+    const themes = ["auto", "light", "dark"]; let t = 0;
+    $("theme").addEventListener("click", () => {
+      t = (t + 1) % 3;
+      if (themes[t] === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = themes[t];
+      $("theme").textContent = "Theme: " + themes[t];
+    });
+    let last = 0;
+    if (window.ResizeObserver) new ResizeObserver(() => { const w = $("chartwrap").clientWidth; if (w !== last) { last = w; if (state.view === "chart") refresh(); } }).observe($("chartwrap"));
+    refresh();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
