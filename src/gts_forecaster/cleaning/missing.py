@@ -56,6 +56,36 @@ def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
     return runs
 
 
+def split_short_series(
+    df: pd.DataFrame, min_series_length: int, target_column: str = TARGET
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split off the series with fewer than `min_series_length` rows (decided by the user
+    2026-10-11: a brand-new series must not stop the run). They get the last observed target as
+    their forecast for the whole horizon, with a warning, and never reach a model.
+
+    `df` is in the model format (unique_id, ds, y, ...). Returns (the other series, a fallback
+    table with FALLBACK_COLUMNS)."""
+    counts = df.groupby(ID, sort=False)[DATE].transform("size")
+    short = df[counts < min_series_length]
+    rows: list[dict] = []
+    for uuid, group in short.groupby(ID, sort=False):
+        observed = group.sort_values(DATE).set_index(DATE)[target_column].dropna()
+        if observed.empty:
+            raise DataContractError(f"Series {uuid} has no observed target value.")
+        value = float(observed.iloc[-1])
+        reason = f"only {len(group)} row(s), fewer than min_series_length={min_series_length}"
+        rows.append({
+            ID: uuid, "last_observed_date": observed.index[-1], "last_observed_value": value,
+            "fallback_value": value, "reason": reason,
+        })
+        logger.warning(
+            "uuid %s: %s, so no model is applied. The forecast will be the last observed value "
+            "(%s, %s) for every horizon step.", uuid, reason, value, f"{observed.index[-1]:%Y-%m-%d}",
+        )
+    rest = df[counts >= min_series_length].reset_index(drop=True)
+    return rest, pd.DataFrame(rows, columns=FALLBACK_COLUMNS)
+
+
 def handle_missing_data(
     df: pd.DataFrame,
     *,

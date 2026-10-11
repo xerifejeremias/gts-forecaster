@@ -49,7 +49,8 @@ from gts_forecaster.data_preparation import load_prepared
 
 prepared = load_prepared("weekly")   # or "yearly", "monthly", "daily"
 prepared.data      # unique_id, ds, y, explanatory columns, is_filled
-prepared.fallback  # series that get a fallback forecast instead of models
+prepared.fallback  # series that get a fallback forecast instead of models (long gaps, or fewer
+                   # than min_series_length rows: those always get their last value)
 prepared.report    # every missing run that was repaired or sent to the fallback
 ```
 

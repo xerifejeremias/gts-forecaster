@@ -1,6 +1,7 @@
 """Full input path: load -> contract -> repair -> contract again. Uses pandera."""
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from gts_forecaster.config import load_config
@@ -39,6 +40,24 @@ def test_long_gap_gives_a_fallback_not_a_failure(tmp_path):
     df = drop_rows(make_panel(), make_uuid(0), ["2024-04-01", "2024-05-01", "2024-06-01", "2024-07-01"])
     prepared = prepare_input_data(config_for(tmp_path, df))
     assert prepared.fallback["unique_id"].tolist() == [make_uuid(0)]
+
+
+def test_too_short_series_gets_the_last_value_not_a_failure(tmp_path, caplog):
+    # a brand-new series with 2 months of data (min_series_length is 3 for monthly)
+    df = make_panel(3)
+    new = make_uuid(2)
+    df = df[(df["uuid"] != new) | (df["date"] >= df["date"].max() - pd.DateOffset(months=1))]
+    last = df.loc[df["uuid"] == new].sort_values("date")["target"].iloc[-1]
+    prepared = prepare_input_data(config_for(tmp_path, df))
+    assert set(prepared.data["unique_id"]) == {make_uuid(0), make_uuid(1)}
+    row = prepared.fallback.set_index("unique_id").loc[new]
+    assert row["fallback_value"] == pytest.approx(last) and "fewer than" in row["reason"]
+    assert "no model is applied" in caplog.text
+
+
+def test_only_too_short_series_stops_the_run(tmp_path):
+    with pytest.raises(DataContractError, match="Every series has fewer than"):
+        prepare_input_data(config_for(tmp_path, make_panel(2, 2)))
 
 
 def test_missing_file_stops_the_pipeline(tmp_path):

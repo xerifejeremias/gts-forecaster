@@ -306,7 +306,7 @@ Checked in two steps. Any violation raises a `DataContractError` and the pipelin
 - No nulls in `uuid` or `date`, and no infinite values in any column.
 - No duplicate (`uuid`, `date`) rows.
 - Dates are aligned to the chosen frequency (for example month starts for monthly).
-- Data is not empty, and every series meets the minimum length set in the frequency profile (shorter series are listed explicitly, not silently dropped).
+- Data is not empty. A series shorter than the minimum length in the frequency profile no longer stops the run (changed 2026-10-11): it gets the last observed value as its forecast, with a warning that names it (see "Too-short series get the last value").
 
 **Step 2: missing periods, repaired by the rules below, then checked again.** A period counts as missing if its row is absent or its `target` or an explanatory variable is null. After the repair the data must be fully valid: no nulls, no gaps in any series, and all series ending on the same date (the common cutoff, which is the latest date in the data).
 
@@ -501,6 +501,32 @@ itself accepts the old file (`registry.read_existing_selection`, changed 2026-10
 daily rerun failed on it): unlocked entries naming such a model are dropped with a warning (the new
 backtest replaces them); a locked entry naming one is still an error.
 
+### Simulated earlier runs for the Live view (2026-10-11, `scripts/simulate_past_runs.py`)
+
+`python -m poetry run python scripts/simulate_past_runs.py --frequency monthly --horizon 18 --back 12 9 6 3`
+cuts the input 12/9/6/3 periods before its last date and runs `run-pipeline --steps forecast` on each
+cut (cut inputs in `runs/_simulated_inputs/`, outputs to the scratch `runs/_simulated_outputs/`, run
+records in `runs/<frequency>/`, which the Live view reads; outputs/ and registry/ are untouched).
+Every simulated run uses today's selection.json, so it looks better than a real past run would. Then
+`report --frequency monthly`. Done for monthly: Live view shows 4 runs (data to Sep 2024, Dec 2024,
+Mar 2025, Jun 2025), WAPE of the total 2.3-3.2% per run vs a backtest level of 3.5% (the Jun 2025
+run has only 3 months of actuals). Delete those run folders before going live (`runs/monthly/
+20261011_1701*`, `..._1702*`, `..._1703*`, `..._1704*`; their manifests name an input under
+`runs/_simulated_inputs/`); `runs/monthly/latest.txt` was set back to the real run 20261011_151141.
+
+**Too-short series get the last value (decided by the user 2026-10-11).** Before, a series with fewer
+than `min_series_length` rows (profile: 3) stopped the whole run at the input contract, so one
+brand-new product would have blocked every forecast (found while simulating: 5 synthetic series had 1
+row at the 6-months-back cut). Now `prepare_input_data` runs the structural checks on every series
+(types, duplicates, alignment still stop the run), then `cleaning/missing.split_short_series` moves
+the too-short series to `PreparedInput.fallback` with the last observed target as the forecast for the
+whole horizon (always last value, whatever `fallback` says) and a warning per series ("only N row(s),
+fewer than min_series_length=3, so no model is applied ..."). They never reach a model or the
+backtest, and appear in the output like the other fallback series. If every series is too short the
+run still stops. `check_min_length` itself is unchanged (still used with 1). Tests:
+`tests/contracts/test_data_preparation.py`. Checked end to end on the monthly cut at Mar 2025: 40
+series in the output, the 5 new ones flat at their last value.
+
 ## Next steps (updated 2026-10-11)
 
 1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily
@@ -513,7 +539,8 @@ backtest replaces them); a locked entry naming one is still an error.
    minimum history, ensemble size and number of folds on real data with the Accuracy tab.
 4. Optional: Prophet (`--extras prophet`, then `--no-fast-only`); Orbit needs a C++ toolchain on Windows.
 5. **Independent code review** (the user wants it last). Known: `ruff check` reports older line-length and
-   import-order issues across src and tests.
+   import-order issues across src and tests; the number of pytest warnings varies between identical full runs
+   (124 to 2882, almost all attributed to tests/unit/test_outliers.py, none when that file runs alone).
 
 ## Note for other LLMs / collaborators
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from gts_forecaster.cleaning.missing import handle_missing_data
+from gts_forecaster.cleaning.missing import handle_missing_data, split_short_series
 from gts_forecaster.columns import ID, to_model_format
 from gts_forecaster.config import FALLBACKS, ConfigError, RunConfig, load_config
 from gts_forecaster.contracts.errors import DataContractError
@@ -46,19 +46,29 @@ def prepare_input_data(config: RunConfig) -> PreparedInput:
 
     The input file has the columns uuid, date, target and the explanatory columns. The result
     is renamed to the model format unique_id, ds, y. Raises DataContractError if the data
-    cannot be loaded or breaks the contract.
+    cannot be loaded or breaks the contract. Series with fewer than the profile's
+    `min_series_length` rows pass the structural checks but then get the last-value fallback
+    (with a warning) instead of stopping the run.
     """
     raw = load_input_csv(config.data_path, config.static_columns)
     validated = validate_input_structure(
         raw,
         config.explanatory_columns,
         pandas_freq=config.profile.pandas_freq,
-        min_series_length=config.profile.min_series_length,
+        min_series_length=1,  # too-short series get a fallback below instead of stopping the run
         static_columns=config.static_columns,
     )
     static = to_model_format(extract_static_table(validated, config.static_columns))
-    result = handle_missing_data(
+    long_enough, short_fallback = split_short_series(
         to_model_format(validated.drop(columns=list(config.static_columns))),
+        config.profile.min_series_length,
+    )
+    if long_enough.empty:
+        raise DataContractError(
+            f"Every series has fewer than {config.profile.min_series_length} rows: nothing to model."
+        )
+    result = handle_missing_data(
+        long_enough,
         pandas_freq=config.profile.pandas_freq,
         value_columns=config.value_columns,
         max_fill_periods=config.max_fill_periods,
@@ -68,7 +78,10 @@ def prepare_input_data(config: RunConfig) -> PreparedInput:
         result.data, config.profile.pandas_freq, config.value_columns, result.cutoff
     )
     check_model_frame(result.data, config.explanatory_columns)
-    return PreparedInput(result.data, result.fallback, result.report, result.cutoff, config, static)
+    fallback = result.fallback
+    if not short_fallback.empty:
+        fallback = pd.concat([f for f in (fallback, short_fallback) if not f.empty], ignore_index=True)
+    return PreparedInput(result.data, fallback, result.report, result.cutoff, config, static)
 
 
 def limit_series(prepared: PreparedInput, n: int | None) -> PreparedInput:
