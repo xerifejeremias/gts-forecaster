@@ -191,13 +191,13 @@ def _run_step(step: str, cfg: RunConfig, prepared, config_dir: Path | None, outp
             logger.warning("train: model(s) failed and will be refitted at forecast time: %s", list(out.failed))
         return [out.folder / MANIFEST, out.folder / "train_timings.csv"]
     if step == "forecast":
-        from gts_forecaster.pipelines.forecast import run_forecast_pipeline
+        from gts_forecaster.pipelines.forecast import CHECKS_FILE, run_forecast_pipeline
 
         out = run_forecast_pipeline(prepared, output_dir=output_dir, config_dir=config_dir)
         folder = out.forecast_path.parent
         return [
             out.output_path, out.forecast_path, out.by_model_path, folder / "model_timings.csv",
-            folder / "model_failures.csv", folder / "outliers.csv",
+            folder / "model_failures.csv", folder / "outliers.csv", folder / CHECKS_FILE,
         ]
     if step == "report":
         from gts_forecaster.pipelines.report import run_report_pipeline

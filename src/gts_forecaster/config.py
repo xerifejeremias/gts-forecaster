@@ -17,6 +17,7 @@ RESERVED_COLUMNS = ("uuid", "date", "target", "unique_id", "ds", "y", "is_filled
 ENSEMBLE_WEIGHTS = ("equal", "inverse_error")
 ON_MODEL_ERROR = ("skip", "raise")
 FORECAST_MODES = ("frozen_selection", "frozen_models")
+FORECAST_CHECK_ACTIONS = ("warn", "raise", "off")
 _ALLOWED_KEYS = {
     "frequency",
     "horizon",
@@ -51,12 +52,16 @@ _ALLOWED_KEYS = {
     "output_rename",
     "forecast_floor",
     "runs_dir",
+    "forecast_check_action",
+    "forecast_check_threshold",
+    "forecast_check_max_ratio",
 }
 _OPTIONAL_KEYS = {
     "horizon", "backtest_step", "known_future_columns", "future_features_path", "static_columns",
     "fast_only", "models", "exclude_models", "max_series", "on_model_error",
     "forecast_mode", "fitted_models_dir", "output_file", "output_rename",
     "forecast_floor", "runs_dir",
+    "forecast_check_action", "forecast_check_threshold", "forecast_check_max_ratio",
 }
 
 
@@ -122,6 +127,12 @@ class RunConfig:
     forecast_floor: float | None = 0.0
     # `run-pipeline` keeps one folder per run here: <runs_dir>/<frequency>/<run id>/
     runs_dir: Path = Path("runs")
+    # Sanity checks of the final forecasts (forecast_checks.py): warn | raise | off. The outlier
+    # check uses forecast_check_threshold robust standard deviations (None: outlier_threshold); the
+    # total_change and start_jump checks flag changes beyond forecast_check_max_ratio times.
+    forecast_check_action: str = "warn"
+    forecast_check_threshold: float = 5.0
+    forecast_check_max_ratio: float = 3.0
 
     @property
     def is_partial_run(self) -> bool:
@@ -322,6 +333,19 @@ def load_config(
     ):
         raise ConfigError(f"forecast_floor must be a number or null, got {forecast_floor!r}")
 
+    check_action = raw.get("forecast_check_action", "warn")
+    if check_action not in FORECAST_CHECK_ACTIONS:
+        raise ConfigError(
+            f"forecast_check_action must be one of {list(FORECAST_CHECK_ACTIONS)}, got {check_action!r}"
+        )
+    check_threshold = raw.get("forecast_check_threshold")
+    check_threshold = threshold if check_threshold is None else check_threshold
+    if isinstance(check_threshold, bool) or not isinstance(check_threshold, (int, float)) or not check_threshold > 0:
+        raise ConfigError(f"forecast_check_threshold must be a number > 0 or null, got {check_threshold!r}")
+    check_ratio = raw.get("forecast_check_max_ratio", 3.0)
+    if isinstance(check_ratio, bool) or not isinstance(check_ratio, (int, float)) or not check_ratio > 1:
+        raise ConfigError(f"forecast_check_max_ratio must be a number > 1, got {check_ratio!r}")
+
     forecast_mode = raw.get("forecast_mode", "frozen_selection")
     if forecast_mode not in FORECAST_MODES:
         raise ConfigError(f"forecast_mode must be one of {list(FORECAST_MODES)}, got {forecast_mode!r}")
@@ -396,4 +420,7 @@ def load_config(
         output_rename=tuple(output_rename.items()),
         forecast_floor=None if forecast_floor is None else float(forecast_floor),
         runs_dir=runs_dir,
+        forecast_check_action=check_action,
+        forecast_check_threshold=float(check_threshold),
+        forecast_check_max_ratio=float(check_ratio),
     )

@@ -9,6 +9,7 @@ registry/<frequency>/selection.json. Writes, to outputs/<frequency>/:
   forecasts_by_model.csv   unique_id, ds, one column per model
   forecasts.csv            ds, uuid, forecast
   outliers.csv             training points that were replaced as outliers
+  forecast_checks.csv      series whose forecast failed a sanity check (forecast_checks.py)
 The horizon may differ from the one used in the backtest.
 """
 
@@ -28,6 +29,7 @@ from gts_forecaster.config import FORECAST_MODES, ON_MODEL_ERROR, ConfigError, l
 from gts_forecaster.contracts.errors import DataContractError
 from gts_forecaster.data_preparation import PreparedInput, limit_series, prepare_input_data
 from gts_forecaster.features.known_future import attach_known_future, load_known_future
+from gts_forecaster.forecast_checks import check_forecasts, report_flags
 from gts_forecaster.forecasting import ForecastError, combine_forecasts, forecast_by_model
 from gts_forecaster.models.catalog import build_models_from_config
 from gts_forecaster.models.store import (
@@ -38,6 +40,8 @@ from gts_forecaster.registry import read_selection, registry_path, selection_fil
 from gts_forecaster.splitting import SplitError, forecast_split
 
 logger = logging.getLogger(__name__)
+
+CHECKS_FILE = "forecast_checks.csv"
 
 
 @dataclass
@@ -51,6 +55,7 @@ class ForecastOutput:
     timings: pd.DataFrame | None = None
     output: pd.DataFrame | None = None  # the validated file for the receiving platform
     output_path: Path | None = None
+    checks: pd.DataFrame | None = None  # sanity-check flags, one row per flag (None: checks off)
 
 
 def training_split(prepared: PreparedInput):
@@ -160,6 +165,15 @@ def run_forecast_pipeline(
         wide, selection, prepared.fallback, split.horizon_dates,
         drop_missing=cfg.on_model_error == "skip", forecast_floor=cfg.forecast_floor,
     )
+    # Sanity checks before anything is written, so `raise` leaves no output behind.
+    checks = None
+    if cfg.forecast_check_action != "off":
+        checks = check_forecasts(
+            prepared.data, final, season_length=cfg.profile.season_length,
+            threshold=cfg.forecast_check_threshold, max_ratio=cfg.forecast_check_max_ratio,
+            skip_ids=set(prepared.fallback[ID]) if len(prepared.fallback) else (),
+        )
+        report_flags(checks, cfg.forecast_check_action)
     failures = pd.DataFrame(failure_rows, columns=["model", "error"])
     timings = pd.DataFrame(
         timing_rows, columns=["model", "n_series", "fit_seconds", "predict_seconds", "status"]
@@ -187,13 +201,20 @@ def run_forecast_pipeline(
     output_path = folder / cfg.output_file
     write_output(output, output_path)
     timings.to_csv(folder / "model_timings.csv", index=False)
+    checks_file = folder / CHECKS_FILE
+    if checks is not None:  # written even when empty, so it is clear the checks ran
+        out = checks if static is None else checks.merge(static, on=ID, how="left")
+        out.rename(columns={ID: "uuid"}).to_csv(checks_file, index=False)
+    elif checks_file.exists():
+        checks_file.unlink()
     failures_file = folder / "model_failures.csv"
     if len(failures):
         failures.to_csv(failures_file, index=False)
     elif failures_file.exists():  # do not leave a stale file from an earlier run
         failures_file.unlink()
     return ForecastOutput(
-        wide, final, cleaned.report, by_model_path, forecast_path, failures, timings, output, output_path
+        wide, final, cleaned.report, by_model_path, forecast_path, failures, timings, output, output_path,
+        checks,
     )
 
 

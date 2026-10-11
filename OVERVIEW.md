@@ -527,6 +527,33 @@ run still stops. `check_min_length` itself is unchanged (still used with 1). Tes
 `tests/contracts/test_data_preparation.py`. Checked end to end on the monthly cut at Mar 2025: 40
 series in the output, the 5 new ones flat at their last value.
 
+## Forecast sanity checks (built 2026-10-11, requested by the user)
+
+`forecast_checks.py`, run by the forecast pipeline right after `combine_forecasts` and before any file
+is written. Per series (fallback series skipped), the final forecast against the series' own history:
+- `outlier`: a forecast step more than `forecast_check_threshold` (null = `outlier_threshold`, 5) robust
+  standard deviations from the median of its neighbouring forecast steps (up to 2 each side, at least 2).
+  The yardstick is the spread of the history's neighbour residuals, as in the training-outlier method
+  (`cleaning/outliers.extension_scores`), floored at 1% of the series' median level. Differences from the
+  training method, both found on the real outputs: no seasonal adjustment (estimated across history and
+  forecast it made a flat forecast of a seasonal daily series look spiky), and history points are not
+  neighbours (a forecast at another level is a level question, flagged by the next checks, not a spike).
+- `total_change`: forecast total vs the actual total of the same number of periods before the cutoff,
+  more than `forecast_check_max_ratio` (3) times up or down; only when both totals are positive.
+- `start_jump`: mean of the first 3 forecast steps more than 3x off BOTH the last 3 actuals and the same
+  periods one season earlier (only the last actuals without a season). Requiring both stopped two false
+  alarms on noisy series whose values a season earlier were near zero or negative.
+- `zero`: the whole forecast is 0 while the last max(season, 3) actuals average above 0.
+`forecast_check_action`: `warn` (default; log one line per flagged series, at most 5, plus a summary, and
+write `outputs/<frequency>/forecast_checks.csv`: uuid, check, ds, value, reference, score, threshold,
+message, static columns; written even when empty, copied into the run record), `raise`
+(`ForecastCheckError`, a DataContractError: nothing is written) or `off`. On the current synthetic
+outputs (185 series, 4 frequencies) one series is flagged: weekly `c8fe3ccd` (high-predictability series
+declining towards 0; total_change 0.10x), a real case to look at. Tests: `tests/unit/test_forecast_checks.py`
+(injected spike, wrong level, all-zero, noisy reference, flat seasonal forecast, settings) and
+`tests/unit/test_forecasting.py` (file written; `raise` writes nothing). Not done: showing the flags in
+the HTML report.
+
 ## Next steps (updated 2026-10-11)
 
 1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily

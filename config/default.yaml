@@ -108,6 +108,18 @@ output_rename: {}
 # Lowest allowed forecast. Volumes cannot be negative, so every model's predictions (backtest and
 # forecast) and the final forecast are raised to at least this value. null = no floor.
 forecast_floor: 0
+# Sanity checks of the final forecasts, per series against its own history (see forecast_checks.py):
+# outlier (a forecast step far from its neighbours, same method as the training outliers),
+# total_change (forecast total vs the same number of periods before), start_jump (first steps vs the
+# same periods a season earlier) and zero (all-zero forecast after non-zero history).
+#   warn   log the flagged series and write outputs/<frequency>/forecast_checks.csv, still deliver
+#   raise  stop the forecast before anything is written
+#   off    do not check
+forecast_check_action: warn
+# Robust standard deviations for the outlier check. null = the same as outlier_threshold.
+forecast_check_threshold: null
+# total_change and start_jump flag a forecast more than this many times higher or lower.
+forecast_check_max_ratio: 3.0
 # `poetry run run-pipeline` keeps a record of every run in <runs_dir>/<frequency>/<run id>/:
 # run.log, manifest.json (settings, versions, input file fingerprint, step timings and errors),
 # a copy of the config files and of the outputs it produced.

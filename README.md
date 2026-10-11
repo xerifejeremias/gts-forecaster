@@ -112,6 +112,17 @@ checked against the output contract before it is written. Rename columns with `o
 `config/default.yaml`, for example `{uuid: unique_id, date: ds, market: market_code}`. Negative forecasts are
 set to 0 (`forecast_floor: 0`; this applies to every model in the backtest too, so model choice reflects it).
 
+### Sanity checks of the forecasts
+
+Before writing, `forecast` checks every series' final forecast against its own history and lists what looks
+wrong in `outputs/<frequency>/forecast_checks.csv` (also logged): `outlier` (a forecast step far from its
+neighbouring steps, in robust standard deviations of the history, like the training outliers), `total_change`
+(forecast total more than 3x up or down vs the same number of periods before), `start_jump` (first steps more
+than 3x off both the last actuals and the same periods a season earlier) and `zero` (all-zero forecast after
+non-zero history). Settings in `config/default.yaml`: `forecast_check_action` (`warn` default: deliver and
+warn; `raise`: stop before anything is written; `off`), `forecast_check_threshold` (null = `outlier_threshold`)
+and `forecast_check_max_ratio` (3).
+
 ### HTML report
 
 A reference copy of how it should look is in `docs/examples/` (`forecast_report_DEMO.html` and screenshots); the details are in OVERVIEW.md, section "Forecast report".

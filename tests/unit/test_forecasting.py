@@ -139,6 +139,27 @@ def test_pipeline_end_to_end(tmp_path):
     assert set(final.uuid) == {"linear", "const", "short", "gap"}
     assert final.forecast.notna().all() and len(final) == 12
     assert out.by_model_path.is_file()
+    # the sanity checks ran (the file is written even when nothing is flagged)
+    assert (out.forecast_path.parent / "forecast_checks.csv").is_file() and out.checks is not None
+
+
+def test_pipeline_with_failing_checks_and_raise_writes_nothing(tmp_path, monkeypatch):
+    from gts_forecaster.forecast_checks import ForecastCheckError
+    from gts_forecaster.pipelines import forecast as forecast_module
+    from gts_forecaster.pipelines.backtest import run_backtest_pipeline
+
+    cfg = load_config({"frequency": "monthly", "horizon": 3, "n_folds": 2, "top_n": 2, "registry_dir": tmp_path,
+                       "backtesting_dir": tmp_path / "bt", "forecast_check_action": "raise"})
+    df = _panel()
+    prepared = SimpleNamespace(data=df, config=cfg, cutoff=df["ds"].max(),
+                               fallback=pd.DataFrame({"unique_id": [], "fallback_value": []}), static=None)
+    run_backtest_pipeline(prepared)
+    real = forecast_module.combine_forecasts
+    monkeypatch.setattr(forecast_module, "combine_forecasts",
+                        lambda *a, **k: real(*a, **k).assign(forecast=lambda f: f["forecast"] * 50 + 1000))
+    with pytest.raises(ForecastCheckError):
+        forecast_module.run_forecast_pipeline(prepared, output_dir=tmp_path / "out")
+    assert not (tmp_path / "out").exists()
 
 
 def test_pipeline_stops_without_selection_file(tmp_path):

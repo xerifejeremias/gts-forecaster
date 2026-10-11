@@ -110,6 +110,40 @@ def robust_scores(y: np.ndarray, season_length: int = 1) -> np.ndarray:
     return _score_details(y, season_length)[0]
 
 
+def extension_scores(
+    history: np.ndarray, extension: np.ndarray, scale_floor_share: float = _SCALE_FLOOR,
+) -> np.ndarray:
+    """Robust z-scores of the points of `extension` (e.g. a forecast) next to `history`, for spikes
+    and dips inside the extension. Each extension point is compared with the median of its
+    neighbours in the extension (up to two on each side, at least two in all, not itself), as the
+    training method compares a point with its neighbours. The yardstick is the spread of the
+    history's own neighbour residuals, so a smooth extension cannot shrink it. Unlike the training
+    method there is no seasonal adjustment (estimated across history and forecast it made a flat
+    forecast look spiky), and history points are not used as neighbours (a forecast that starts at
+    another level is a level question, not a spike).
+
+    The scale is at least `scale_floor_share` x the median absolute history value, so a flat
+    history does not turn tiny deviations into huge scores. All NaN when the history has fewer than
+    MIN_OBSERVATIONS points or the extension has fewer than 3."""
+    history = np.asarray(history, dtype=float)
+    extension = np.asarray(extension, dtype=float)
+    n, h = len(history), len(extension)
+    if n < MIN_OBSERVATIONS or h < 3:
+        return np.full(h, np.nan)
+    resid = history - _neighbour_prediction(history)
+    valid = resid[~np.isnan(resid)]
+    if len(valid) == 0:
+        return np.full(h, np.nan)
+    centre = float(np.median(valid))
+    scale = _MAD_TO_SD * np.median(np.abs(valid - centre))
+    scale = max(scale, scale_floor_share * max(1.0, float(np.median(np.abs(history)))))
+    expected = np.array([
+        np.median(np.concatenate([extension[max(0, k - 2) : k], extension[k + 1 : k + 3]]))
+        for k in range(h)
+    ])
+    return (extension - expected - centre) / scale
+
+
 def _replacement(y: np.ndarray, flagged: np.ndarray, bound: np.ndarray, action: str) -> np.ndarray:
     """The series with the flagged points replaced according to `action`."""
     if action == "interpolate":
