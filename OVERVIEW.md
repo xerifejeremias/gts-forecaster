@@ -626,8 +626,25 @@ Also changed: `models` / `exclude_models` (e.g. `backtest --models ...`) ignore 
 models.yaml but are skipped for the run's frequency, so one list serves every frequency (it was an
 "unknown model" error); naming only skipped models is an error. Pipeline tests now build the catalog without
 the tuning variants (`tests/helpers.use_core_catalog`, names starting `lgbm_`, `xgb_`, `rf_`), otherwise the
-suite took 9.5 min instead of 3.5. Not done yet: a full run-pipeline per frequency with the new settings in
-the real selections.
+suite took 9.5 min instead of 3.5.
+
+**Full runs with the new settings (2026-10-11).** `run-pipeline` for all four frequencies (monthly with
+--horizon 18): yearly 3.9 min, monthly 3.6, weekly 5.5, daily 11.7 (was 9.1). New settings in the top 3 /
+ranked first: yearly 13 / 7 of 40 series, monthly 12 / 5 of 30, weekly 13 / 10 of 45, daily 10 / 5 of 50.
+Most chosen: lgbm_tweedie_static and xgb_tweedie_static (all frequencies), xgb_l1, the daily-lag settings
+(daily). In the backtest, the best new setting beat the best previous model by more than 5% in 6 yearly, 1
+monthly, 0 weekly and 0 daily series. **Out of sample it does not help:** on the same backtest, choosing per
+series on the earlier folds and scoring on the last fold (scratchpad script, same rules as
+`scripts/holdout_check.py`), with only the previous models vs with the new settings too: yearly WAPE 15.9% ->
+16.9%, monthly 12.1% -> 12.3%, weekly 24.8% -> 24.9%, daily 22.8% -> 22.8%; series more than 5% better /
+worse: yearly 3 / 7, monthly 0 / 2, weekly 2 / 8, daily 3 / 3 (most series keep the same choice). Reading:
+with 2-3 folds per series, many similar candidates mean some setting wins the backtest by luck (selection
+overfitting); the synthetic series (trend + sine seasonality + noise) also leave little for tuning to find.
+Real data (promotions, intermittent volumes, more history) may differ, Tweedie especially. **Decided by
+the user (2026-10-11): keep all settings competing for now; decide later (on real data) whether to prune.**
+Options noted for then: prune to the consistently strong ones (lgbm/xgb_tweedie_static, rf_static, the
+daily-lag settings), or reduce selection noise (more folds, or a new setting must beat the previous best by
+a margin).
 
 ## Next steps (updated 2026-10-11)
 
@@ -640,6 +657,7 @@ the real selections.
    `runs/` folders); confirm the platform's column names (`output_rename`); check the outlier threshold,
    minimum history, ensemble size and number of folds on real data with the Accuracy tab.
 4. Optional: Prophet (`--extras prophet`, then `--no-fast-only`); Orbit needs a C++ toolchain on Windows.
+4b. On real data: decide whether to prune the tree-model settings (see "Tree-model settings").
 5. **Independent code review** (the user wants it last). Known: `ruff check` reports older line-length and
    import-order issues across src and tests; the number of pytest warnings varies between identical full runs
    (124 to 2882, almost all attributed to tests/unit/test_outliers.py, none when that file runs alone).
