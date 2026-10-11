@@ -11,7 +11,6 @@ Read `OVERVIEW.md` first: it is the source of truth for the design, every decisi
 - Poetry is not on PATH here: use `python -m poetry ...` (e.g. `python -m poetry run pytest -q`).
   The venv is in the project (`.venv`). Set `PYTHONUTF8=1` if output has encoding errors.
 - Python 3.12 or 3.13 is required (pyproject). pandas must stay < 3.
-- Leftover to delete by hand: `data/generate_synthetic_data.py` (the real script is in `scripts/`).
 
 ## Commands
 

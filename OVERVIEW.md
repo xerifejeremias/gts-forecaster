@@ -510,9 +510,9 @@ records in `runs/<frequency>/`, which the Live view reads; outputs/ and registry
 Every simulated run uses today's selection.json, so it looks better than a real past run would. Then
 `report --frequency monthly`. Done for monthly: Live view shows 4 runs (data to Sep 2024, Dec 2024,
 Mar 2025, Jun 2025), WAPE of the total 2.3-3.2% per run vs a backtest level of 3.5% (the Jun 2025
-run has only 3 months of actuals). Delete those run folders before going live (`runs/monthly/
-20261011_1701*`, `..._1702*`, `..._1703*`, `..._1704*`; their manifests name an input under
-`runs/_simulated_inputs/`); `runs/monthly/latest.txt` was set back to the real run 20261011_151141.
+run has only 3 months of actuals). The four simulated runs, `runs/_simulated_inputs/` and
+`runs/_simulated_outputs/` were deleted on 2026-10-12 (housekeeping), so the Live view is empty again until
+real runs have actuals; rerun the script to try the view again.
 
 **Too-short series get the last value (decided by the user 2026-10-11).** Before, a series with fewer
 than `min_series_length` rows (profile: 3) stopped the whole run at the input contract, so one
