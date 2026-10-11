@@ -691,6 +691,27 @@ series lose their ML candidates (32 days needed), and a few tenths of a point ar
 per-series choice. Yearly: ML models in 23 of 40 selections. Kept (better models, same pipeline result);
 re-judge on real data.
 
+## Slow models: Prophet and Orbit (tried 2026-10-11, asked by the user)
+
+- **Prophet** installs with `poetry install --extras "stats ml foundation prophet"` (1.5.0, with
+  cmdstanpy 1.3.0; the Windows wheel ships CmdStan) and works. A first test took 36 s per fit: with fewer
+  than 100 points Prophet uses Newton's method, and on a noise-free test series the fit never converged
+  (10,000 iterations). On realistic data a fit takes 0.2-0.8 s.
+- **Orbit cannot be installed as things stand:** orbit-ml 1.1.5.1 (needed for Python 3.12+) is only on PyPI
+  as source, and the older wheels do not install on this Python / Windows. Building it needs a C++ toolchain
+  (RTools: the installer `RTools40.exe` is in `~/.cmdstan` but was never run; ~1 GB) and a CmdStan build.
+  Not done: left for the user to decide.
+- **Backtest with `--no-fast-only`** (Prophet in, Orbit skipped with a warning) on all four frequencies;
+  one backtest writes both `selection_fast.json` (used by default) and `selection.json` (with Prophet,
+  `includes_slow_models: true`). Prophet's backtest time / total: yearly 36 / 199 s, monthly 25 / 169 s,
+  weekly 34 / 285 s, daily 70 / 623 s. Prophet in the top 3 / ranked first: yearly 2 / 1 of 40 series,
+  monthly 1 / 0 of 30 (only 9 series have the two years Prophet needs in every fold), weekly 7 / 4 of 45,
+  daily 12 / 7 of 50. Beats the best fast model by more than 5%: 0, 0, 2 and 1 series. **Fair hold-out**
+  (same backtest, choice with vs without the slow models): yearly 16.7% -> 16.7%, monthly 12.3% -> 12.3%,
+  weekly 24.9% -> 24.9%, daily 23.2% -> 23.3%. Conclusion on the synthetic data: not worth the extra time;
+  `fast_only: true` stays the default. Real data with holidays, promotions or trend changes (Prophet's
+  strengths) may differ: worth one `--no-fast-only` backtest there.
+
 ## Next steps (updated 2026-10-11)
 
 1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily
