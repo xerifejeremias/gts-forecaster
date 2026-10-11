@@ -129,6 +129,7 @@ def build_models(
     fast_only: bool = True,
     known_columns: Sequence[str] = (),
     explanatory_columns: Sequence[str] = (),
+    ml_features: Mapping[str, Mapping[str, Sequence[int]]] | None = None,
 ) -> dict[str, BaseForecaster]:
     """Create the candidate models for one frequency.
 
@@ -137,6 +138,8 @@ def build_models(
     `pandas_freq` is passed to models that take a `freq`, `known_columns` (the explanatory columns
     known in the future) to models that take `known_columns`, and `explanatory_columns` (all of them) to models that take that. With `fast_only`, models marked slow
     are left out. A model whose library is not installed is left out with a warning.
+    `ml_features` (from the frequency profile) gives the default lags / rolling windows of the
+    MLForecast models, per `feature_group`, unless models.yaml sets them for that model.
     """
     models: dict[str, BaseForecaster] = {}
     for name, spec in specs.items():
@@ -174,6 +177,10 @@ def build_models(
             params.setdefault("known_columns", tuple(known_columns))
         if "explanatory_columns" in init_parameters:
             params.setdefault("explanatory_columns", tuple(explanatory_columns))
+        group = (ml_features or {}).get(getattr(cls, "feature_group", ""), {})
+        for key in ("lags", "rolling_windows"):
+            if key in group and key in init_parameters:
+                params.setdefault(key, list(group[key]))
         try:
             models[name] = cls(**params)
         except (TypeError, ValueError) as exc:
@@ -277,4 +284,5 @@ def build_models_from_config(
         specs, cfg.profile.season_length, builders,
         pandas_freq=cfg.profile.pandas_freq, fast_only=cfg.fast_only,
         known_columns=cfg.known_future_columns, explanatory_columns=cfg.explanatory_columns,
+        ml_features=cfg.profile.ml_features,
     )

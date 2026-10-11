@@ -73,3 +73,32 @@ def test_missing_config_dir_is_rejected(tmp_path):
 def test_backtesting_dir_defaults_to_project_folder():
     cfg = load_config({"frequency": "monthly", "horizon": 3})
     assert cfg.backtesting_dir.name == "backtesting" and cfg.backtesting_dir.is_absolute()
+
+
+# ---- ml_features in the frequency profiles ---------------------------------------------------
+
+
+def test_shipped_profiles_ml_features():
+    profiles = load_profiles()
+    assert profiles["daily"].ml_features["trees"]["lags"] == [1, 2, 3, 4, 5, 6, 7, 14, 21, 28]
+    assert profiles["daily"].ml_features["linear"]["rolling_windows"] == [7, 28]
+    assert set(profiles["yearly"].ml_features) == {"trees"}  # ridge/lasso keep the adapter default
+    assert profiles["monthly"].ml_features == {} and profiles["weekly"].ml_features == {}
+
+
+@pytest.mark.parametrize("bad", [
+    "  ml_features: {forest: {lags: [1]}}\n",
+    "  ml_features: {trees: {lags: [1], depth: 3}}\n",
+    "  ml_features: {trees: {lags: [0, 1]}}\n",
+    "  ml_features: {trees: {lags: []}}\n",
+    "  ml_features: {trees: {lags: season}}\n",
+])
+def test_invalid_ml_features_are_rejected(tmp_path, bad):
+    text = open(project_root() / "config" / "frequency_profiles.yaml", encoding="utf-8").read()
+    # replace the shipped yearly ml_features with the bad one
+    start = text.index("yearly:")
+    end = text.index("monthly:")
+    yearly = "".join(l + "\n" for l in text[start:end].splitlines() if not l.startswith(("  ml_features", "    trees")))
+    (tmp_path / "frequency_profiles.yaml").write_text(text[:start] + yearly + bad + text[end:], encoding="utf-8")
+    with pytest.raises(ConfigError, match="ml_features"):
+        load_profiles(tmp_path)

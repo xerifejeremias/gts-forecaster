@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +76,9 @@ class FrequencyProfile:
     min_series_length: int
     default_horizon: int
     season_length: int
+    # Default lags / rolling windows of the MLForecast models for this frequency, per model group:
+    # {"trees": {"lags": [...], "rolling_windows": [...]}, "linear": {...}}. Empty: the adapter default.
+    ml_features: dict[str, dict[str, list]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -164,6 +167,29 @@ def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+ML_FEATURE_GROUPS = ("trees", "linear")  # MLForecast models: tree ensembles, linear models
+
+
+def _ml_features(profile: str, raw: Any) -> dict[str, dict[str, list]]:
+    """Validate the optional `ml_features` of a frequency profile."""
+    if raw is None:
+        return {}
+    where = f"Frequency profile '{profile}': ml_features"
+    if not isinstance(raw, dict) or set(raw) - set(ML_FEATURE_GROUPS):
+        raise ConfigError(f"{where} must map {list(ML_FEATURE_GROUPS)} to lags / rolling_windows")
+    out = {}
+    for group, settings in raw.items():
+        if not isinstance(settings, dict) or not settings or set(settings) - {"lags", "rolling_windows"}:
+            raise ConfigError(f"{where}.{group} may only set lags and rolling_windows")
+        for key, values in settings.items():
+            if not isinstance(values, list) or not all(_is_int(v) and v >= 1 for v in values):
+                raise ConfigError(f"{where}.{group}.{key} must be a list of whole numbers >= 1")
+        if settings.get("lags") == []:
+            raise ConfigError(f"{where}.{group}.lags needs at least one lag")
+        out[group] = {k: list(v) for k, v in settings.items()}
+    return out
+
+
 def load_profiles(config_dir: Path | None = None) -> dict[str, FrequencyProfile]:
     """Read config/frequency_profiles.yaml."""
     config_dir = config_dir or project_root() / "config"
@@ -177,6 +203,7 @@ def load_profiles(config_dir: Path | None = None) -> dict[str, FrequencyProfile]
                 min_series_length=entry["min_series_length"],
                 default_horizon=entry["default_horizon"],
                 season_length=entry["season_length"],
+                ml_features=_ml_features(name, entry.get("ml_features")),
             )
         except (KeyError, TypeError) as exc:
             raise ConfigError(f"Frequency profile '{name}' is incomplete or malformed: {exc}") from exc

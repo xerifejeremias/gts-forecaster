@@ -646,6 +646,51 @@ Options noted for then: prune to the consistently strong ones (lgbm/xgb_tweedie_
 daily-lag settings), or reduce selection noise (more folds, or a new setting must beat the previous best by
 a margin).
 
+## Lag and rolling-window features (2026-10-11, requested by the user)
+
+Until now every MLForecast model used lags 1, 2, 3, season and rolling windows 3, season (mean, std) without
+any check. The user asked to test alternative sets; agreed approach (the per-series selection already
+overfits with many candidates): choose the feature set once per frequency and model family, on the backtest
+of the family baselines (lightgbm, xgboost, rf_fast, ridge, lasso; same regressor settings), not as extra
+per-series candidates. StatsForecast models and Chronos do not use lag features. The user chose
+"Alternative A: denser short-term" (a long-memory set B was proposed too; long lags exclude most synthetic
+series: a model needs max lag + 3 observations):
+
+| Frequency | Alternative A lags | Rolling windows |
+|---|---|---|
+| yearly | 1-5 | 3, 5 |
+| monthly | 1, 2, 3, 6, 12, 24 | 3, 6, 12 |
+| weekly | 1, 2, 3, 4, 8, 13, 52 | 4, 13, 52 |
+| daily | 1-7, 14, 21, 28 | 7, 28 |
+
+Results (partial backtests, compared on the points both versions forecast; change in WAPE, test folds won by A):
+- daily: every family better: trees -6.0% to -6.9%, ridge/lasso -16.2%, 3 of 3 folds, 82-90% of series.
+  Coverage 40 of 45 backtested series (needs 32 days) instead of 45.
+- yearly: trees better (lightgbm -4.5%, xgboost -8.0%, rf_fast -6.3%; 2-3 of 3 folds); ridge/lasso worse
+  (+4.3%, 0 of 3 folds).
+- monthly: small gains (-1.1% to -5.2%) but measured on only 15 of 30 series, because lag 24 needs 27 months:
+  coverage halves. Not a clear win: kept the default.
+- weekly: within +-1.4%: kept the default.
+
+**Adopted (2026-10-11, the plan agreed with the user: switch only where A clearly wins):** daily, all
+MLForecast models; yearly, tree models only. Mechanism: optional `ml_features` per frequency profile in
+`config/frequency_profiles.yaml` (`trees` / `linear` groups, each `lags` and/or `rolling_windows`;
+validated in `config._ml_features`); `build_models(..., ml_features=)` fills them in as the default for
+every MLForecast model of that group (`feature_group` class attribute: "trees" for LightGBM/XGBoost/random
+forest, "linear" for ridge/lasso) that does not set its own lags in models.yaml. Per-frequency `lags` /
+`rolling_windows` mappings are also accepted in models.yaml now (`{monthly: [...], daily: [...]}`). The
+experiment entries (`*_lags_a`) were removed. Side effect: on daily, lgbm_daily_lags / xgb_daily_lags now have
+the same features as the baselines and differ only in their regressor settings. Tests: test_config.py,
+test_mlforecast_adapter.py.
+
+Full runs afterwards (yearly 2.8 min, daily 12.8 min; fair hold-out check, `scripts/holdout_check.py`, vs the
+run just before): yearly pipeline WAPE 16.9% -> 16.7%; daily 22.8% -> 23.2%. So at pipeline level the
+change is neutral, although each ML model on its own is 6-16% better on daily: on daily only 14 of 55 series
+have an ML model in their selection (Chronos and the statistical models win most series), 5 short daily
+series lose their ML candidates (32 days needed), and a few tenths of a point are within the noise of the
+per-series choice. Yearly: ML models in 23 of 40 selections. Kept (better models, same pipeline result);
+re-judge on real data.
+
 ## Next steps (updated 2026-10-11)
 
 1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily

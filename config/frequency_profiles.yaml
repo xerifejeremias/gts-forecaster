@@ -1,13 +1,20 @@
 # Settings that depend on the data frequency.
 #   pandas_freq       pandas offset alias that dates must be aligned to
-#   min_series_length hard floor: a series with fewer observations fails the input contract
+#   min_series_length a series with fewer observations gets the last-value fallback (no model)
 #   default_horizon   used when no horizon is given
 #   season_length     periods in one seasonal cycle (1 = no seasonality, used by seasonal models)
+#   ml_features       optional default lags / rolling windows of the MLForecast models, per group
+#                     (trees: LightGBM, XGBoost, random forest; linear: ridge, lasso). Without it, or for a
+#                     group not listed: lags 1, 2, 3, season and windows 3, season. A model that sets its
+#                     own lags in models.yaml keeps them. Decided 2026-10-11 from a backtest of the default
+#                     set vs a denser short-term set ("Alternative A"): see OVERVIEW.
 yearly:
   pandas_freq: "YS"
   min_series_length: 3
   default_horizon: 3
   season_length: 1
+  ml_features:              # trees 4.5-8% better with these; ridge/lasso were better with the default
+    trees: {lags: [1, 2, 3, 4, 5], rolling_windows: [3, 5]}
 monthly:
   pandas_freq: "MS"
   min_series_length: 3
@@ -23,3 +30,6 @@ daily:
   min_series_length: 3
   default_horizon: 14
   season_length: 7
+  ml_features:              # every day of the last week + 2, 3, 4 weeks back: 6-16% better, all families
+    trees: {lags: [1, 2, 3, 4, 5, 6, 7, 14, 21, 28], rolling_windows: [7, 28]}
+    linear: {lags: [1, 2, 3, 4, 5, 6, 7, 14, 21, 28], rolling_windows: [7, 28]}

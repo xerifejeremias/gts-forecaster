@@ -261,6 +261,20 @@ def test_min_train_length():
     assert RidgeForecaster(season_length=12, min_length=30).min_train_length == 30
 
 
+def test_lags_and_windows_per_frequency():
+    lags = {"monthly": [1, 2, 3, 6, 12, 24], "daily": [1, 7, 28]}
+    windows = {"monthly": [3, 6, 12]}
+    monthly = RidgeForecaster(season_length=12, freq="MS", lags=lags, rolling_windows=windows)
+    assert monthly._resolved_lags() == (1, 2, 3, 6, 12, 24) and monthly._resolved_windows() == (3, 6, 12)
+    assert monthly.min_train_length == 27  # lag 24 + 3
+    daily = RidgeForecaster(season_length=7, freq="D", lags=lags, rolling_windows=windows)
+    assert daily._resolved_lags() == (1, 7, 28) and daily._resolved_windows() == (3, 7)  # windows: default
+    weekly = RidgeForecaster(season_length=52, freq="W-MON", lags=lags)  # not listed: the default
+    assert weekly._resolved_lags() == (1, 2, 3, 52)
+    with pytest.raises(ValueError, match="unknown frequency"):
+        RidgeForecaster(season_length=12, freq="MS", lags={"hourly": [1]})
+
+
 def test_known_columns_reach_the_model_and_need_future_values(monkeypatch):
     _install(monkeypatch)
 
@@ -528,3 +542,15 @@ def test_predict_without_update_does_not_pass_new_df(monkeypatch):
     model = RidgeForecaster(season_length=12, freq="MS", lags=[1, 2]).fit(train)
     assert model.new_df_ is None
     model.predict(_future(train, 2))  # the fake would fail on an unexpected argument otherwise
+
+
+def test_profile_ml_features_are_the_default_lags_per_group():
+    specs = load_model_specs(types=["ridge", "random_forest"])
+    specs = {"ridge": specs["ridge"], "random_forest": specs["random_forest"],
+             "own": {"type": "random_forest", "params": {"lags": [1, 2]}, "features": None}}
+    builders = {"calendar_only": _builder()}
+    defaults = {"trees": {"lags": [1, 4], "rolling_windows": [4]}}
+    built = build_models(specs, 12, builders, pandas_freq="MS", ml_features=defaults)
+    assert built["random_forest"]._resolved_lags() == (1, 4) and built["random_forest"]._resolved_windows() == (4,)
+    assert built["ridge"]._resolved_lags() == (1, 2, 3, 12)  # linear group not given: adapter default
+    assert built["own"]._resolved_lags() == (1, 2)  # models.yaml lags win

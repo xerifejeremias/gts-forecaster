@@ -19,7 +19,7 @@ optional extra `ml` (`poetry install --extras ml`).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
 import numpy as np
@@ -61,9 +61,11 @@ class MLForecastAdapter(BaseForecaster):
 
     season_length      seasonal period (filled in from the frequency profile)
     freq               pandas frequency alias (filled in from the frequency profile)
-    lags               target lags: integers or `season`, `2*season`, ... (default 1, 2, 3, season)
+    lags               target lags: integers or `season`, `2*season`, ... (default 1, 2, 3, season).
+                       Also per frequency: {monthly: [1, 2, 3, 12], daily: [...]}; a frequency that
+                       is not listed gets the default
     rolling_windows    sizes (>= 2) of rolling statistics of the target, ending at lag 1
-                       (default 3 and season)
+                       (default 3 and season); per frequency like `lags`
     rolling_stats      any of mean, std, min, max (default mean, std)
     date_features      MLForecast date features (pandas date attribute names). Default: a few per
                        frequency, or none when a feature set supplies the calendar
@@ -81,6 +83,8 @@ class MLForecastAdapter(BaseForecaster):
     requires_packages: ClassVar[tuple[str, ...]] = ("mlforecast",)
     install_extra: ClassVar[str | None] = "ml"
     _default_params: ClassVar[dict[str, Any]] = {}
+    # which `ml_features` group of the frequency profile gives this model its default lags/windows
+    feature_group: ClassVar[str] = "trees"
 
     def __init__(
         self,
@@ -131,12 +135,23 @@ class MLForecastAdapter(BaseForecaster):
         if not self._resolved_lags():
             raise ValueError("a model needs at least one lag")
 
+    def _for_frequency(self, value, what: str):
+        """`value` itself, or its entry for this frequency when it is given per frequency."""
+        if not isinstance(value, Mapping):
+            return value
+        unknown = sorted(set(value) - set(_DEFAULT_DATE_FEATURES))
+        if unknown:
+            raise ValueError(f"{what}: unknown frequency {unknown}; use {sorted(_DEFAULT_DATE_FEATURES)}")
+        return value.get(frequency_kind(self.freq))
+
     def _resolved_lags(self) -> tuple[int, ...]:
-        raw = [1, 2, 3, "season"] if self.lags is None else list(self.lags)
+        lags = self._for_frequency(self.lags, "lags")
+        raw = [1, 2, 3, "season"] if lags is None else list(lags)
         return tuple(sorted(set(resolve_lengths(raw, int(self.season_length), "lags"))))
 
     def _resolved_windows(self) -> tuple[int, ...]:
-        raw = [3, "season"] if self.rolling_windows is None else list(self.rolling_windows)
+        windows = self._for_frequency(self.rolling_windows, "rolling_windows")
+        raw = [3, "season"] if windows is None else list(windows)
         windows = resolve_lengths(raw, int(self.season_length), "rolling_windows")
         return tuple(sorted({w for w in windows if w >= 2}))
 
@@ -335,6 +350,7 @@ class _LinearForecaster(MLForecastAdapter):
     """Linear model on standardised features (missing values filled with the median)."""
 
     requires_packages: ClassVar[tuple[str, ...]] = ("mlforecast", "sklearn")
+    feature_group: ClassVar[str] = "linear"
 
     def _estimator(self, **params):
         raise NotImplementedError
