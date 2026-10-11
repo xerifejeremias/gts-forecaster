@@ -9,6 +9,12 @@ from gts_forecaster.forecasting import ForecastError, combine_forecasts, forecas
 from gts_forecaster.models.catalog import build_models, load_model_specs
 from helpers import BASELINES
 from gts_forecaster.splitting import forecast_split
+from helpers import use_core_catalog
+
+@pytest.fixture(autouse=True)
+def _core_catalog(monkeypatch):
+    use_core_catalog(monkeypatch)  # pipeline tests: no tuning variants of the tree models
+
 
 N = 24
 

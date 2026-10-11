@@ -436,7 +436,9 @@ def test_catalog_skips_only_the_model_whose_regressor_package_is_missing(monkeyp
     built = build_models(load_model_specs(types=ML_TYPES), 12,
                          feature_builders={"calendar_only": _builder(), "global_static": _builder()},
                          pandas_freq="MS")
-    assert set(built) == {"random_forest", "ridge", "lasso"}
+    # without lightgbm and xgboost only the scikit-learn models are left (every random forest setting)
+    rf = {n for n, spec in load_model_specs(types=ML_TYPES).items() if spec["type"] == "random_forest"}
+    assert set(built) == rf | {"ridge", "lasso"} and "random_forest" in rf
 
 
 def _config_dir(tmp_path, models_yaml):

@@ -18,6 +18,12 @@ from gts_forecaster.registry import (
 )
 from gts_forecaster.selection import SelectionError, select_models
 from helpers import BASELINES, make_uuid
+from helpers import use_core_catalog
+
+@pytest.fixture(autouse=True)
+def _core_catalog(monkeypatch):
+    use_core_catalog(monkeypatch)  # pipeline tests: no tuning variants of the tree models
+
 
 N = 24
 

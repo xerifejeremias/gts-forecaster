@@ -568,6 +568,67 @@ no console errors, no sideways scroll) on the weekly report, whose series c8fe3c
 was checked with a flag injected in the page (no real forecast has an outlier flag). Tests in
 `tests/unit/test_report.py`. Not regenerated: `docs/examples/forecast_report_DEMO.html`.
 
+## Tree-model settings (built 2026-10-11, requested by the user)
+
+The user asked for 8-10 LightGBM and XGBoost settings and 4-5 random forest settings, with settings that
+suit each frequency, a couple of Tweedie variants, a check that no setting makes fit time explode, and a
+check of n_jobs. All are entries in `config/models.yaml` (comments there say what each is for);
+`skip_frequencies` keeps a setting to the frequencies it suits. Rows per backtest fold: yearly ~1.4k,
+monthly ~1.9k, weekly ~8k, daily ~60k (all series together: the models are global).
+
+| Setting | Idea | Frequencies |
+|---|---|---|
+| lightgbm / xgboost | baseline (200 trees, lr 0.05, 31 leaves / depth 6) | all |
+| lightgbm_static / xgboost_static | baseline + market/product/company | all |
+| lgbm_shallow / xgb_shallow | small trees (7 leaves, depth 3), slow learning, bagging | all |
+| lgbm_regularized / xgb_regularized | medium trees, L1/L2 penalties, bagging, column sampling | all |
+| lgbm_deep / xgb_deep | 500 trees, 63 leaves / depth 8 | weekly, daily |
+| lgbm_l1 / xgb_l1 | absolute-error loss (median; robust, matches the MAE metric) | all |
+| lgbm_tweedie / xgb_tweedie | Tweedie, variance power 1.2, `local_minmax` target scaling | all |
+| lgbm_tweedie_static / xgb_tweedie_static | Tweedie 1.5 + static features | all |
+| lgbm_daily_lags / xgb_daily_lags | lags 1-7, 14, 21, 28; rolling windows 7 and 28 | daily |
+| random_forest | baseline (200 trees, leaf >= 3, half the features) | not daily |
+| rf_fast | 100 trees, depth 10, half the rows per tree | all |
+| rf_shallow | 300 trees, depth 6, leaf >= 10 | not daily |
+| rf_static | static features, 30% of the rows per tree, leaf >= 5 | all |
+| rf_large | 300 trees, leaf >= 2, 70% of the features | not daily |
+
+Tweedie (LightGBM and XGBoost) refuses negative targets, and the default per-series scaling
+(`local_standard`) produces negative values (some synthetic series are negative too), so the Tweedie
+settings use `local_minmax` (each series scaled to 0..1). Per frequency the catalog now has 19 (yearly,
+monthly), 21 (weekly) and 20 (daily) tree models, plus ridge and lasso.
+
+**Backtest of all settings (partial runs, `registry/<f>_partial`; real selections untouched).** Compared
+on the points every setting forecast. WAPE of the best / worst tree setting vs naive: yearly 15.8-18.9%
+(naive 21.0%), monthly 14.3-17.9% (19.5%), weekly 28.6-30.9% (34.9%), daily 24.2-26.9% (32.1%): every
+setting beats naive everywhere. Findings: the `_static` settings are near the top at every frequency
+(rf_static best on yearly and monthly); on daily the daily-lag settings are best (xgb 24.2%, lgbm 24.5%);
+Tweedie without static features is at the bottom on yearly/monthly and mid-field on weekly/daily, Tweedie
+with static features is among the best on weekly/daily; the deep settings are weak on weekly and mid-field
+on daily (kept: real data has more rows). These are synthetic data: re-judge on real data (Accuracy tab,
+`scripts/holdout_check.py`).
+
+**Fit time.** Total backtest time of all tree settings (3 folds): yearly ~46 s, monthly ~74 s, weekly
+~113 s, daily 259 s (415 s before the changes below). Random forests are the risk on daily data:
+random_forest and the first rf_static took ~37 s per fit on all cores (~114-120 s per daily backtest for
+55 series; ~45 min per forest per backtest at 1000 daily series). Decided: random_forest and rf_shallow
+skip daily (rf_fast is better there at 7 s per fit; rf_shallow was last), rf_large skips daily, and
+rf_static uses max_samples 0.3 / min_samples_leaf 5 (was 0.7 / 3): same accuracy (daily 25.1% vs 25.0%,
+monthly 14.4% vs 14.3%, yearly 15.8% vs 16.0%), daily backtest 120 s -> 54 s. Boosting settings take 1-8 s
+per daily fit.
+
+**n_jobs.** Each setting fitted on the full daily data with 1 thread and with all cores (4 logical / 2
+physical): LightGBM 1.3-1.7x faster with all cores (5x for the first fit), XGBoost 1.2-1.4x, random
+forests 2.4-2.5x. These libraries use threads, not processes, so there is no start-up cost as with
+StatsForecast on Windows: all cores stays the default for the tree models (`n_jobs: -1`, `num_threads: -1`).
+
+Also changed: `models` / `exclude_models` (e.g. `backtest --models ...`) ignore names that exist in
+models.yaml but are skipped for the run's frequency, so one list serves every frequency (it was an
+"unknown model" error); naming only skipped models is an error. Pipeline tests now build the catalog without
+the tuning variants (`tests/helpers.use_core_catalog`, names starting `lgbm_`, `xgb_`, `rf_`), otherwise the
+suite took 9.5 min instead of 3.5. Not done yet: a full run-pipeline per frequency with the new settings in
+the real selections.
+
 ## Next steps (updated 2026-10-11)
 
 1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily

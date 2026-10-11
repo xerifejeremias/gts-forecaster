@@ -7,6 +7,12 @@ from gts_forecaster.config import ConfigError, load_config
 from gts_forecaster.evaluation.backtest import run_backtest
 from gts_forecaster.models.catalog import build_models, load_model_specs
 from helpers import BASELINES
+from helpers import use_core_catalog
+
+@pytest.fixture(autouse=True)
+def _core_catalog(monkeypatch):
+    use_core_catalog(monkeypatch)  # pipeline tests: no tuning variants of the tree models
+
 
 
 def _frame(y, uid="a", start="2020-01-01", freq="MS", filled=None):

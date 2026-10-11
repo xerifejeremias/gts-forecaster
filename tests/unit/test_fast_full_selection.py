@@ -4,6 +4,8 @@ fast_only on (default) -> forecast/train/report use selection_fast.json and fitt
 fast_only off -> selection.json and fitted_models/<f>/full/. Decided with the user 2026-10-06.
 """
 
+import pytest
+
 import json
 from types import SimpleNamespace
 
@@ -13,6 +15,12 @@ import pandas as pd
 from gts_forecaster.config import load_config
 from gts_forecaster.models.naive import DriftForecaster, NaiveForecaster, SeasonalNaiveForecaster
 from helpers import static_table
+from helpers import use_core_catalog
+
+@pytest.fixture(autouse=True)
+def _core_catalog(monkeypatch):
+    use_core_catalog(monkeypatch)  # pipeline tests: no tuning variants of the tree models
+
 
 N = 24
 

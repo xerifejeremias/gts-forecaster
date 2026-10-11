@@ -41,23 +41,157 @@ mstl:
 # `features` adds calendar features (and, for the *_static models, identifier features); the set must
 # not define lags. Explanatory columns listed in `known_future_columns` are used automatically.
 # `skip_without_static: true` leaves the model out, with a warning, when there are no static_columns.
-lightgbm:
+# ---- LightGBM family (decided 2026-10-11: 9 settings). Data sizes per backtest fold: yearly ~1.4k rows,
+# monthly ~1.9k, weekly ~8k, daily ~60k, so the deep settings run only on weekly and daily data and the
+# richer daily lags only on daily. Tweedie (variance power 1 = Poisson .. 2 = Gamma; 1.1-1.5 suits volume
+# data) needs a target >= 0, so those settings scale each series to 0..1 (local_minmax) instead of the
+# default local_standard, which gives negative values. l1 fits the median: robust to spikes and matched to
+# the MAE selection metric. LightGBM bagging (subsample) only works with subsample_freq >= 1.
+lightgbm:                      # baseline: 200 trees, learning rate 0.05, 31 leaves
   type: lightgbm
   features: calendar_only
-lightgbm_static:
+lightgbm_static:               # baseline + market/product/company features
   type: lightgbm
   features: global_static
   skip_without_static: true
-xgboost:
+lgbm_shallow:                  # small trees, slow learning: for the small yearly/monthly data sets
+  type: lightgbm
+  features: calendar_only
+  params:
+    regressor_params: {n_estimators: 300, learning_rate: 0.03, num_leaves: 7, max_depth: 3,
+                       min_child_samples: 10, subsample: 0.8, subsample_freq: 1, colsample_bytree: 0.8}
+lgbm_regularized:              # medium trees, strong L1/L2 penalties and bagging
+  type: lightgbm
+  features: calendar_only
+  params:
+    regressor_params: {n_estimators: 300, learning_rate: 0.05, num_leaves: 15, min_child_samples: 30,
+                       reg_alpha: 0.1, reg_lambda: 5.0, subsample: 0.7, subsample_freq: 1,
+                       colsample_bytree: 0.7}
+lgbm_deep:                     # many large trees: only where there is a lot of data
+  type: lightgbm
+  features: calendar_only
+  skip_frequencies: [yearly, monthly]
+  params:
+    regressor_params: {n_estimators: 500, learning_rate: 0.03, num_leaves: 63, min_child_samples: 20,
+                       subsample: 0.8, subsample_freq: 1, colsample_bytree: 0.8}
+lgbm_l1:                       # absolute-error loss (median), robust to spikes
+  type: lightgbm
+  features: calendar_only
+  params:
+    regressor_params: {objective: l1, n_estimators: 300, learning_rate: 0.05, num_leaves: 31}
+lgbm_tweedie:                  # Tweedie loss for volume data (zeros allowed, right-skewed)
+  type: lightgbm
+  features: calendar_only
+  params:
+    target_transforms: [local_minmax]
+    regressor_params: {objective: tweedie, tweedie_variance_power: 1.2, n_estimators: 300,
+                       learning_rate: 0.05, num_leaves: 31}
+lgbm_tweedie_static:           # Tweedie closer to Gamma, with market/product/company features
+  type: lightgbm
+  features: global_static
+  skip_without_static: true
+  params:
+    target_transforms: [local_minmax]
+    regressor_params: {objective: tweedie, tweedie_variance_power: 1.5, n_estimators: 300,
+                       learning_rate: 0.05, num_leaves: 31}
+lgbm_daily_lags:               # daily: every day of the last week plus 2, 3 and 4 weeks back
+  type: lightgbm
+  features: calendar_only
+  skip_frequencies: [yearly, monthly, weekly]
+  params:
+    lags: [1, 2, 3, 4, 5, 6, 7, 14, 21, 28]
+    rolling_windows: [7, 28]
+    regressor_params: {n_estimators: 400, learning_rate: 0.05, num_leaves: 31, colsample_bytree: 0.8}
+
+# ---- XGBoost family (9 settings, same ideas; histogram method). reg:tweedie needs a target >= 0 too.
+xgboost:                       # baseline: 200 trees, learning rate 0.05, depth 6
   type: xgboost
   features: calendar_only
 xgboost_static:
   type: xgboost
   features: global_static
   skip_without_static: true
-random_forest:
+xgb_shallow:
+  type: xgboost
+  features: calendar_only
+  params:
+    regressor_params: {n_estimators: 400, learning_rate: 0.05, max_depth: 3, min_child_weight: 5,
+                       subsample: 0.8, colsample_bytree: 0.8}
+xgb_regularized:
+  type: xgboost
+  features: calendar_only
+  params:
+    regressor_params: {n_estimators: 300, learning_rate: 0.05, max_depth: 4, min_child_weight: 10,
+                       reg_alpha: 0.5, reg_lambda: 5.0, subsample: 0.7, colsample_bytree: 0.7}
+xgb_deep:
+  type: xgboost
+  features: calendar_only
+  skip_frequencies: [yearly, monthly]
+  params:
+    regressor_params: {n_estimators: 500, learning_rate: 0.03, max_depth: 8, min_child_weight: 3,
+                       subsample: 0.8, colsample_bytree: 0.8}
+xgb_l1:
+  type: xgboost
+  features: calendar_only
+  params:
+    regressor_params: {objective: "reg:absoluteerror", n_estimators: 300, learning_rate: 0.05, max_depth: 6}
+xgb_tweedie:
+  type: xgboost
+  features: calendar_only
+  params:
+    target_transforms: [local_minmax]
+    regressor_params: {objective: "reg:tweedie", tweedie_variance_power: 1.2, n_estimators: 300,
+                       learning_rate: 0.05, max_depth: 6}
+xgb_tweedie_static:
+  type: xgboost
+  features: global_static
+  skip_without_static: true
+  params:
+    target_transforms: [local_minmax]
+    regressor_params: {objective: "reg:tweedie", tweedie_variance_power: 1.5, n_estimators: 300,
+                       learning_rate: 0.05, max_depth: 6}
+xgb_daily_lags:
+  type: xgboost
+  features: calendar_only
+  skip_frequencies: [yearly, monthly, weekly]
+  params:
+    lags: [1, 2, 3, 4, 5, 6, 7, 14, 21, 28]
+    rolling_windows: [7, 28]
+    regressor_params: {n_estimators: 400, learning_rate: 0.05, max_depth: 6, colsample_bytree: 0.8}
+
+# ---- Random forest family (5 settings). Fully grown trees on ~60k daily rows are the slow case:
+# max_samples (rows per tree) and max_depth keep the time down. Daily data runs only rf_fast and rf_static
+# (measured 2026-10-11, see OVERVIEW "Tree-model settings").
+random_forest:                 # baseline: 200 trees, min 3 rows per leaf, half the features per split
   type: random_forest
   features: calendar_only
+  skip_frequencies: [daily]    # 37 s per daily fit and beaten there by rf_fast (7 s)
+rf_fast:                       # 100 shallower trees on half the rows each: cheap at any size
+  type: random_forest
+  features: calendar_only
+  params:
+    regressor_params: {n_estimators: 100, max_depth: 10, min_samples_leaf: 5, max_features: 0.5,
+                       max_samples: 0.5}
+rf_shallow:                    # strongly regularized trees for small data sets
+  type: random_forest
+  features: calendar_only
+  skip_frequencies: [daily]    # last of all tree settings on daily data
+  params:
+    regressor_params: {n_estimators: 300, max_depth: 6, min_samples_leaf: 10, max_features: 0.33}
+rf_static:                     # best random forest everywhere; 30% of the rows per tree keeps daily fast
+  type: random_forest
+  features: global_static
+  skip_without_static: true
+  params:
+    regressor_params: {n_estimators: 200, min_samples_leaf: 5, max_features: 0.5, max_samples: 0.3}
+rf_large:                      # more, deeper trees: not for daily data (fit time)
+  type: random_forest
+  features: calendar_only
+  skip_frequencies: [daily]
+  params:
+    regressor_params: {n_estimators: 300, min_samples_leaf: 2, max_features: 0.7}
+
+# ---- Linear models
 ridge:
   type: ridge
   features: calendar_only

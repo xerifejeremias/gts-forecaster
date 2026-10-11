@@ -238,11 +238,18 @@ def build_models_from_config(
     `static` is the table of static values per series (PreparedInput.static), needed only by
     feature sets that use identifier features. `cfg.models` / `cfg.exclude_models` restrict the
     candidates unless `apply_model_filter` is false."""
-    specs = load_model_specs(config_dir)
-    specs = skip_for_frequency(specs, cfg.frequency, {REFERENCE_MODEL, *cfg.short_series_models})
+    all_specs = load_model_specs(config_dir)
+    specs = skip_for_frequency(all_specs, cfg.frequency, {REFERENCE_MODEL, *cfg.short_series_models})
     if apply_model_filter and (cfg.models or cfg.exclude_models):
+        # a model that exists in models.yaml but is skipped for this frequency is simply not run;
+        # naming it in `models` / `exclude_models` is not an error (one list can serve every frequency)
+        skipped = set(all_specs) - set(specs)
+        include = [n for n in cfg.models or () if n not in skipped]
+        if cfg.models and not include:
+            raise ConfigError(f"every model named in `models` is skipped for {cfg.frequency} data")
         specs = filter_specs(
-            specs, cfg.models, cfg.exclude_models, {REFERENCE_MODEL, *cfg.short_series_models}
+            specs, include, [n for n in cfg.exclude_models if n not in skipped],
+            {REFERENCE_MODEL, *cfg.short_series_models},
         )
     feature_config = load_feature_config(config_dir)
     has_static = static is not None and any(c != "unique_id" for c in static.columns)

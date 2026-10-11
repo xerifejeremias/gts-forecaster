@@ -12,6 +12,12 @@ import pytest
 from gts_forecaster.config import load_config
 from gts_forecaster.pipelines.run import default_steps, run_pipeline
 from helpers import static_table
+from helpers import use_core_catalog
+
+@pytest.fixture(autouse=True)
+def _core_catalog(monkeypatch):
+    use_core_catalog(monkeypatch)  # pipeline tests: no tuning variants of the tree models
+
 
 N = 24
 

@@ -50,3 +50,22 @@ def static_table(ids, columns=("market", "product", "company")) -> pd.DataFrame:
     """One row per series with made-up identifier values (for pipeline tests)."""
     ids = list(dict.fromkeys(ids))
     return pd.DataFrame({"unique_id": ids, **{c: [f"{c}_{k % 2}" for k in range(len(ids))] for c in columns}})
+
+
+# The extra LightGBM / XGBoost / random forest settings in models.yaml (lgbm_*, xgb_*, rf_*) are tuning
+# variants of models the catalog already has. Pipeline tests check the pipeline, not each setting, so
+# they leave them out (otherwise the suite takes three times as long).
+TUNING_VARIANT_PREFIXES = ("lgbm_", "xgb_", "rf_")
+
+
+def use_core_catalog(monkeypatch):
+    """Make the pipelines build models.yaml without the tuning variants."""
+    from gts_forecaster.models import catalog
+
+    original = catalog.load_model_specs
+
+    def core_specs(config_dir=None, types=None):
+        specs = original(config_dir, types)
+        return {n: s for n, s in specs.items() if not n.startswith(TUNING_VARIANT_PREFIXES)}
+
+    monkeypatch.setattr(catalog, "load_model_specs", core_specs)

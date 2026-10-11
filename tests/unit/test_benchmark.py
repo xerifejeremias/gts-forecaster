@@ -6,6 +6,12 @@ import pytest
 from gts_forecaster.benchmark import _extrapolate, main, run_benchmark, summary_lines, synthetic_panel
 from gts_forecaster.config import load_config
 from gts_forecaster.models.naive import NaiveForecaster
+from helpers import use_core_catalog
+
+@pytest.fixture(autouse=True)
+def _core_catalog(monkeypatch):
+    use_core_catalog(monkeypatch)  # pipeline tests: no tuning variants of the tree models
+
 
 
 def _cfg(**extra):

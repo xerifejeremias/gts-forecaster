@@ -23,6 +23,12 @@ from gts_forecaster.features.static import (
 )
 from gts_forecaster.models.base import BaseForecaster
 from gts_forecaster.models.catalog import MODEL_TYPES, build_models_from_config
+from helpers import use_core_catalog
+
+@pytest.fixture(autouse=True)
+def _core_catalog(monkeypatch):
+    use_core_catalog(monkeypatch)  # pipeline tests: no tuning variants of the tree models
+
 
 # four series: two markets x two products, one company each
 STATIC = pd.DataFrame(

@@ -266,7 +266,25 @@ def test_skip_frequencies_must_list_known_frequencies(tmp_path, value):
         load_model_specs(tmp_path)
 
 
-def test_shipped_catalog_skips_arima_for_daily_only():
+def test_shipped_catalog_skip_frequencies():
     specs = load_model_specs()
     assert specs["auto_arima"]["skip_frequencies"] == ["daily"]
-    assert all(not s["skip_frequencies"] for n, s in specs.items() if n != "auto_arima")
+    assert specs["lgbm_deep"]["skip_frequencies"] == ["yearly", "monthly"]  # needs a lot of data
+    assert specs["xgb_daily_lags"]["skip_frequencies"] == ["yearly", "monthly", "weekly"]
+    assert specs["rf_large"]["skip_frequencies"] == ["daily"]  # fit time on daily data
+    assert not specs["naive"]["skip_frequencies"] and not specs["lightgbm"]["skip_frequencies"]
+
+
+def test_model_filter_ignores_models_skipped_for_this_frequency(tmp_path):
+    from gts_forecaster.models.catalog import build_models_from_config
+
+    yaml = _SKIP_DRIFT_DAILY + "lazy:\n  type: naive\n  skip_frequencies: [daily]\n"
+    directory = _models_dir(tmp_path, yaml)
+    overrides = {"short_series_models": ["naive", "seasonal_naive"]}
+    daily = load_config({"frequency": "daily", "models": ["lazy", "seasonal_naive"], **overrides}, config_dir=directory)
+    assert set(build_models_from_config(daily, directory)) == {"naive", "seasonal_naive"}
+    only_skipped = load_config({"frequency": "daily", "models": ["lazy"], **overrides}, config_dir=directory)
+    with pytest.raises(ConfigError, match="skipped for daily"):
+        build_models_from_config(only_skipped, directory)
+    excluded = load_config({"frequency": "daily", "exclude_models": ["lazy"], **overrides}, config_dir=directory)
+    assert "lazy" not in build_models_from_config(excluded, directory)

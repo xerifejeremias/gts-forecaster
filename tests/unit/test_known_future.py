@@ -12,6 +12,12 @@ from gts_forecaster.features.known_future import (
 )
 from gts_forecaster.models.base import BaseForecaster
 from helpers import make_panel
+from helpers import use_core_catalog
+
+@pytest.fixture(autouse=True)
+def _core_catalog(monkeypatch):
+    use_core_catalog(monkeypatch)  # pipeline tests: no tuning variants of the tree models
+
 
 
 def _future(ids=("a", "b"), n=3):
