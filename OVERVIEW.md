@@ -551,8 +551,22 @@ message, static columns; written even when empty, copied into the run record), `
 outputs (185 series, 4 frequencies) one series is flagged: weekly `c8fe3ccd` (high-predictability series
 declining towards 0; total_change 0.10x), a real case to look at. Tests: `tests/unit/test_forecast_checks.py`
 (injected spike, wrong level, all-zero, noisy reference, flat seasonal forecast, settings) and
-`tests/unit/test_forecasting.py` (file written; `raise` writes nothing). Not done: showing the flags in
-the HTML report.
+`tests/unit/test_forecasting.py` (file written; `raise` writes nothing).
+
+**Flags in the HTML report (built 2026-10-11, requested by the user).** `pipelines/report.py` reads
+`outputs/<frequency>/forecast_checks.csv` when it exists (`CHECKS_FILE`, defined in forecast_checks.py);
+`report/data.py` adds `flags: [{check, message, ds}]` to every series and `meta.checks_ran` /
+`meta.n_flagged`. The page (template.html; tokens `--warn` / `--warn-bg` in all three theme blocks):
+a "Checks" filter next to market/product/company ("All series" / "Flagged only (N)", shared by both tabs,
+disabled when nothing is flagged; only shown when the checks ran); "· N flagged by the checks" in the
+count; in a total, a note "k series of the n in this selection were flagged" with a "Show flagged only"
+button; when filtered, the box names the flagged series (up to 30, `FLAG_LIST_MAX`) with their checks, each name a link to that series in the single-series view, plus "Show all series" (asked by the user after the first version); for a single series a "Flagged" badge next to its name, a
+box listing each check and message, "— flagged" in the series dropdown, an amber ring on dated flagged
+forecast points (outlier) with a legend entry, and the flag in the hover tooltip. The fallback text now
+says "too many missing periods or too little history". Checked in the browser (desktop, 375 px dark,
+no console errors, no sideways scroll) on the weekly report, whose series c8fe3ccd is flagged; the ring
+was checked with a flag injected in the page (no real forecast has an outlier flag). Tests in
+`tests/unit/test_report.py`. Not regenerated: `docs/examples/forecast_report_DEMO.html`.
 
 ## Next steps (updated 2026-10-11)
 

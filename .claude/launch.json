@@ -4,8 +4,30 @@
     {
       "name": "report-monthly",
       "runtimeExecutable": ".venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1", "--directory", "outputs/monthly"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "outputs/monthly"
+      ],
       "port": 8765
+    },
+    {
+      "name": "report-weekly",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "outputs/weekly"
+      ],
+      "port": 8766
     }
   ]
 }

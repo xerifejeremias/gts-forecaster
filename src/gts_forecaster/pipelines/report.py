@@ -21,6 +21,7 @@ import pandas as pd
 
 from gts_forecaster.config import ConfigError, load_config
 from gts_forecaster.contracts.errors import DataContractError
+from gts_forecaster.forecast_checks import CHECKS_FILE
 from gts_forecaster.io.loaders import load_input_csv
 from gts_forecaster.registry import registry_path, selection_file
 from gts_forecaster.report.accuracy import backtest_rows, encode, live_rows, newest_backtest_file
@@ -58,6 +59,12 @@ def run_report_pipeline(
         else:
             logger.warning("no %s: the report will have no per-model lines", by_model_path)
     history = load_input_csv(config.data_path, config.static_columns)
+    checks = None
+    checks_path = folder / CHECKS_FILE
+    if checks_path.is_file():
+        checks = pd.read_csv(checks_path, dtype={"uuid": str})
+    else:
+        logger.info("no %s: the report will not show forecast check flags", checks_path.name)
 
     selection = None
     selection_path = registry_path(config.registry_dir, config.frequency) / selection_file(config.fast_only)
@@ -78,6 +85,7 @@ def run_report_pipeline(
         selection=selection,
         fallback_ids=fallback_ids,
         by_model=by_model,
+        checks=checks,
         meta={
             "metric": (selection or {}).get("meta", {}).get("metric"),
             "forecast_mode": config.forecast_mode,

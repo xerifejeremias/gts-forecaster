@@ -40,6 +40,7 @@ from gts_forecaster.forecasting import FORECAST
 logger = logging.getLogger(__name__)
 
 CHECKS = ("outlier", "total_change", "start_jump", "zero")
+CHECKS_FILE = "forecast_checks.csv"  # written next to the forecasts, read by the report
 CHECK_COLUMNS = [ID, "check", DATE, "value", "reference", "score", "threshold", "message"]
 START_STEPS = 3  # forecast steps compared by start_jump
 SCALE_FLOOR_SHARE = 0.01  # the outlier yardstick is at least 1% of the series' typical level

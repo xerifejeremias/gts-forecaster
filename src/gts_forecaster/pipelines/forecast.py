@@ -29,7 +29,7 @@ from gts_forecaster.config import FORECAST_MODES, ON_MODEL_ERROR, ConfigError, l
 from gts_forecaster.contracts.errors import DataContractError
 from gts_forecaster.data_preparation import PreparedInput, limit_series, prepare_input_data
 from gts_forecaster.features.known_future import attach_known_future, load_known_future
-from gts_forecaster.forecast_checks import check_forecasts, report_flags
+from gts_forecaster.forecast_checks import CHECKS_FILE, check_forecasts, report_flags
 from gts_forecaster.forecasting import ForecastError, combine_forecasts, forecast_by_model
 from gts_forecaster.models.catalog import build_models_from_config
 from gts_forecaster.models.store import (
@@ -41,7 +41,6 @@ from gts_forecaster.splitting import SplitError, forecast_split
 
 logger = logging.getLogger(__name__)
 
-CHECKS_FILE = "forecast_checks.csv"
 
 
 @dataclass

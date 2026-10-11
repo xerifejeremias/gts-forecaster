@@ -199,3 +199,49 @@ def test_report_pipeline_includes_model_lines_unless_switched_off(tmp_path):
     assert with_lines["meta"]["model_names"] == ["naive", "drift"]
     without = json.loads(run_report_pipeline(cfg, output_dir=tmp_path / "outputs", model_lines=False).json_path.read_text())
     assert without["meta"]["model_names"] == []
+
+
+# ---- forecast check flags ---------------------------------------------------------------------
+
+
+def _checks():
+    return pd.DataFrame({
+        "uuid": ["b", "b", "c"], "check": ["outlier", "total_change", "zero"],
+        "ds": ["2024-08-01", None, None],
+        "message": ["forecast step 2 is 6.0 robust standard deviations above its neighbours",
+                    "forecast total is 4.00x the actual total", "the whole forecast is 0"],
+    })
+
+
+def test_flags_are_attached_per_series():
+    data = _data(checks=_checks())
+    flags = {s["id"]: s["flags"] for s in data["series"]}
+    assert flags["a"] == []
+    assert [f["check"] for f in flags["b"]] == ["outlier", "total_change"]
+    assert flags["b"][0]["ds"] == "2024-08-01" and flags["b"][1]["ds"] is None
+    assert data["meta"]["checks_ran"] is True and data["meta"]["n_flagged"] == 2
+
+
+def test_without_checks_file_the_report_says_checks_did_not_run():
+    data = _data()
+    assert data["meta"]["checks_ran"] is False and data["meta"]["n_flagged"] == 0
+    assert all(s["flags"] == [] for s in data["series"])
+    assert _data(checks=_checks().iloc[:0])["meta"]["checks_ran"] is True  # ran, nothing flagged
+
+
+def test_checks_need_uuid_check_and_message():
+    with pytest.raises(DataContractError, match="forecast_checks"):
+        _data(checks=_checks().drop(columns=["message"]))
+
+
+def test_report_pipeline_reads_the_checks_file(tmp_path):
+    input_csv = tmp_path / "in.csv"
+    _history().to_csv(input_csv, index=False)
+    out = tmp_path / "outputs" / "monthly"
+    out.mkdir(parents=True)
+    _forecasts().to_csv(out / "forecasts.csv", index=False)
+    _checks().to_csv(out / "forecast_checks.csv", index=False)
+    cfg = load_config({"data_path": str(input_csv), "static_columns": list(DIMS), "registry_dir": tmp_path / "registry"})
+    data = json.loads(run_report_pipeline(cfg, output_dir=tmp_path / "outputs").json_path.read_text())
+    assert data["meta"]["n_flagged"] == 2
+    assert "flagbox" in (out / "forecast_report.html").read_text(encoding="utf-8")

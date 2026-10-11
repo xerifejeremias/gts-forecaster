@@ -8,8 +8,12 @@ dashboard can read:
       "dates":  ["2024-01-01", ...],             history dates followed by forecast dates
       "n_history": 36,                            how many of `dates` are history
       "series": [{"id", "dims": {...}, "hist": [...], "fc": [...], "models": [...], "fallback",
-                  "model_fc": {"<model>": [...]}}]   `fc` is the final (ensemble) forecast
+                  "model_fc": {"<model>": [...]},    `fc` is the final (ensemble) forecast
+                  "flags": [{"check", "message", "ds"}]}]   forecast sanity checks (may be empty)
     }
+
+`meta.checks_ran` says whether forecast_checks.csv was found (the checks ran for these
+forecasts); `meta.n_flagged` counts the series with at least one flag.
 
 `hist` has one value per history date (null = not observed), `fc` one per forecast date.
 Totals over markets, products or companies are computed by the page from these series.
@@ -44,10 +48,12 @@ def build_report_data(
     fallback_ids: Sequence[str] = (),
     by_model: pd.DataFrame | None = None,
     meta: Mapping[str, Any] | None = None,
+    checks: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """`history`: uuid, date, target (+ static columns), as in the input file.
     `forecasts`: ds, uuid, forecast (the forecast pipeline's forecasts.csv, user-facing names).
-    `by_model`: optional forecasts_by_model.csv (uuid, ds, one column per model): adds a line per model."""
+    `by_model`: optional forecasts_by_model.csv (uuid, ds, one column per model): adds a line per model.
+    `checks`: optional forecast_checks.csv (uuid, check, ds, message, ...): the flags of each series."""
     for name, frame, cols in (
         ("history", history, ["uuid", "date", "target"]),
         ("forecasts", forecasts, ["ds", "uuid", "forecast"]),
@@ -91,6 +97,18 @@ def build_report_data(
                     index="uuid", columns="ds", values=name, aggfunc="last"
                 ).reindex(columns=forecast_dates)
 
+    flags: dict[str, list[dict[str, Any]]] = {}
+    if checks is not None and len(checks):
+        missing = [c for c in ("uuid", "check", "message") if c not in checks.columns]
+        if missing:
+            raise DataContractError(f"report: forecast_checks is missing column(s) {missing}")
+        for row in checks.itertuples(index=False):
+            ds = getattr(row, "ds", None)
+            ds = None if ds is None or pd.isna(ds) else pd.Timestamp(ds).strftime("%Y-%m-%d")
+            flags.setdefault(str(row.uuid), []).append(
+                {"check": str(row.check), "message": str(row.message), "ds": ds}
+            )
+
     entries = (selection or {}).get("series", {})
     fallback = set(fallback_ids)
     ids = sorted(set(hist_wide.index) | set(fc_wide.index))
@@ -114,6 +132,7 @@ def build_report_data(
                 ],
                 "fallback": uid in fallback,
                 "model_fc": model_fc,
+                "flags": flags.get(uid, []),
             }
         )
     dates = [d.strftime("%Y-%m-%d") for d in history_dates.append(forecast_dates)]
@@ -127,6 +146,8 @@ def build_report_data(
             "n_series": len(series),
             "n_fallback": sum(1 for s in series if s["fallback"]),
             "model_names": list(model_wide),
+            "checks_ran": checks is not None,
+            "n_flagged": sum(1 for s in series if s["flags"]),
             **dict(meta or {}),
         },
         "dates": dates,

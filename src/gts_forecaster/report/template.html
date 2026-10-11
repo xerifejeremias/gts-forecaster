@@ -20,6 +20,7 @@
   --focus: #2a78d6;
   --chip: #efeee9;
   --m1: #1baf7a; --m2: #eda100; --m3: #e87ba4; --m4: #008300; --m5: #4a3aa7; --m6: #e34948;
+  --warn: #9a5b00; --warn-bg: rgba(237, 161, 0, 0.15);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -28,6 +29,7 @@
     --line: #2f2f2c; --grid: #2a2a28; --hist: #3987e5; --fc: #d95926;
     --fc-bg: rgba(217, 89, 38, 0.14); --focus: #3987e5; --chip: #262624;
     --m1: #199e70; --m2: #c98500; --m3: #d55181; --m4: #008300; --m5: #9085e9; --m6: #e66767;
+    --warn: #f2b84b; --warn-bg: rgba(242, 184, 75, 0.14);
   }
 }
 :root[data-theme="dark"] {
@@ -36,6 +38,7 @@
   --line: #2f2f2c; --grid: #2a2a28; --hist: #3987e5; --fc: #d95926;
   --fc-bg: rgba(217, 89, 38, 0.14); --focus: #3987e5; --chip: #262624;
   --m1: #199e70; --m2: #c98500; --m3: #d55181; --m4: #008300; --m5: #9085e9; --m6: #e66767;
+  --warn: #f2b84b; --warn-bg: rgba(242, 184, 75, 0.14);
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -125,6 +128,13 @@ h3 { font-size: 14px; margin: 18px 0 6px; }
 .acc-table th { cursor: default; }
 .seg button:disabled { opacity: 0.45; cursor: not-allowed; }
 footer { color: var(--ink-3); font-size: 12px; }
+.badge { display: inline-block; font-size: 12px; font-weight: 600; line-height: 1.5; color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 9px; margin-left: 8px; vertical-align: 2px; white-space: nowrap; }
+.flagbox { background: var(--warn-bg); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.flagbox b { color: var(--warn); }
+.flagbox ul { margin: 2px 0 0; padding-left: 18px; flex-basis: 100%; }
+.flagbox button { padding: 2px 10px; min-height: 28px; font-size: 12px; }
+.flagbox li { margin: 2px 0; overflow-wrap: anywhere; }
+.flagbox button.lnk { border: 0; background: none; padding: 0; min-height: 0; font-size: 13px; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-align: left; }
 </style>
 </head>
 <body>
@@ -186,6 +196,7 @@ footer { color: var(--ink-3); font-size: 12px; }
       </div>
     </div>
     <div class="kpis" id="kpis"></div>
+    <div class="flagbox" id="flagbox" hidden></div>
     <div class="chartwrap" id="chartwrap"></div>
     <div class="rangebar" id="rangebar">
       <input type="range" id="range" min="0" max="0" step="1" value="0" aria-label="First date of history to show: drag right to show less history, left to show more">
@@ -248,11 +259,14 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const $ = (id) => document.getElementById(id);
   const state = { filters: {}, mode: DIMS.length ? "aggregate" : "series", seriesId: null, view: "chart", models: new Set(), final: true, start: 0,
-    tab: "forecast", accSource: "backtest", accMetric: "WAPE", accPeriod: "native", accOrigin: "all", accGroup: "total" };
+    flaggedOnly: false, tab: "forecast", accSource: "backtest", accMetric: "WAPE", accPeriod: "native", accOrigin: "all", accGroup: "total" };
   const ACC = DATA.accuracy || null;
   // the model list of the "Forecast lines" menu: models in the forecast and/or in the accuracy data
   const MODEL_NAMES = [...new Set([...(META.model_names || []), ...((ACC && ACC.models) || [])])];
-  for (const s of SERIES) s.model_fc = s.model_fc || {};
+  for (const s of SERIES) { s.model_fc = s.model_fc || {}; s.flags = s.flags || []; }
+  const CHECKS_RAN = !!META.checks_ran, N_FLAGGED = SERIES.filter((s) => s.flags.length).length;
+  const FLAG_LIST_MAX = 30;  // flagged series named in the "flagged only" box
+  const CHECK_NAMES = { outlier: "outlier", total_change: "total change", start_jump: "start jump", zero: "zero forecast" };
   const FINAL = "Final forecast";
   const MCOLORS = ["var(--m1)", "var(--m2)", "var(--m3)", "var(--m4)", "var(--m5)", "var(--m6)"];
   const mColor = (name) => MCOLORS[MODEL_NAMES.indexOf(name) % MCOLORS.length];
@@ -284,11 +298,19 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
 
   /* ---------- selection ---------- */
   function matching() {
-    return SERIES.filter((s) => DIMS.every((d) => !state.filters[d] || s.dims[d] === state.filters[d]));
+    return SERIES.filter((s) => DIMS.every((d) => !state.filters[d] || s.dims[d] === state.filters[d]) &&
+      (!state.flaggedOnly || s.flags.length));
   }
   function label(s) {
     const d = DIMS.map((k) => s.dims[k]).filter(Boolean).join(" · ");
     return (d ? d + " — " : "") + s.id.slice(0, 8);
+  }
+  const optionLabel = (s) => label(s) + (s.flags.length ? "  \u2014 flagged" : "");
+  function setFlaggedOnly(on) {
+    state.flaggedOnly = on;
+    const sel = $("f_checks");
+    if (sel) sel.value = on ? "flagged" : "";
+    refresh();
   }
   function compute() {
     const m = matching();
@@ -344,6 +366,15 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
       sel.addEventListener("change", () => { state.filters[d] = sel.value; refresh(); });
       f.append(l, sel); box.append(f);
     }
+    if (CHECKS_RAN) {
+      const f = document.createElement("div"); f.className = "field";
+      const l = document.createElement("label"); l.textContent = "Checks"; l.htmlFor = "f_checks";
+      const sel = document.createElement("select"); sel.id = "f_checks";
+      sel.add(new Option("All series", ""));
+      const o = new Option("Flagged only (" + N_FLAGGED + ")", "flagged"); o.disabled = !N_FLAGGED; sel.add(o);
+      sel.addEventListener("change", () => setFlaggedOnly(sel.value === "flagged"));
+      f.append(l, sel); box.append(f);
+    }
     if (!DIMS.length) {
       const p = document.createElement("div"); p.className = "sub";
       p.textContent = "No identifier columns (market, product, company ...) are configured, so only single series can be shown.";
@@ -354,7 +385,7 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
     const sel = $("seriesSel");
     const keep = state.seriesId;
     sel.textContent = "";
-    for (const s of m) sel.add(new Option(label(s), s.id));
+    for (const s of m) sel.add(new Option(optionLabel(s), s.id));
     sel.value = m.some((s) => s.id === keep) ? keep : m[0].id;
     state.seriesId = sel.value;
   }
@@ -442,6 +473,10 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
       s += p.length === 1 ? '<circle cx="' + f1(X(p[0][0])) + '" cy="' + f1(Y(p[0][1])) + '" r="2.5" fill="var(--fc)"/>'
         : '<path d="' + d(p) + '" fill="none" stroke="var(--fc)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>';
     }
+    for (const k of flagMarks(c)) {
+      const v = c.fc[k - NH];
+      s += '<circle cx="' + f1(X(k)) + '" cy="' + f1(Y(v)) + '" r="6.5" fill="none" stroke="var(--warn)" stroke-width="2"><title>Flagged by the forecast checks</title></circle>';
+    }
     s += '<line id="cross" y1="' + mt + '" y2="' + (mt + ph) + '" stroke="var(--ink-2)" stroke-width="1" visibility="hidden"/>';
     s += '<circle id="dot" r="4.5" fill="var(--surface)" stroke-width="2" visibility="hidden"/>';
     s += '<rect id="hit" x="' + ml + '" y="' + mt + '" width="' + pw + '" height="' + ph + '" fill="transparent"/>';
@@ -474,6 +509,7 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
         for (const l of c.lines) html += '<br><span style="color:' + mColor(l.name) + '">\u25CF</span> ' + esc(l.name) + ": " + fmtNum(l.vals[i - NH]);
       }
       if (c.n > 1) html += "<br>" + cnt + " of " + c.n + " series";
+      if (c.series && isFc) for (const f of c.series.flags) if (f.ds === DATES[i]) html += '<br><span style="color:var(--warn)">Flagged: ' + esc(CHECK_NAMES[f.check] || f.check) + "</span>";
       tip.innerHTML = html; tip.hidden = false;
       const wb = wrap.getBoundingClientRect(), x = X(i) * (wb.width / W);
       tip.style.left = Math.min(Math.max(4, x + 12), wb.width - tip.offsetWidth - 4) + "px";
@@ -483,6 +519,43 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
     hit.addEventListener("pointermove", show);
     hit.addEventListener("pointerdown", show);
     hit.addEventListener("pointerleave", hide);
+  }
+
+  // forecast positions (index into DATES) to ring on the chart: the dated flags of a single series
+  function flagMarks(c) {
+    if (!c.series || !state.final) return [];
+    return [...new Set(c.series.flags.filter((f) => f.ds).map((f) => DATES.indexOf(f.ds)))]
+      .filter((k) => k >= NH && c.fc[k - NH] != null);
+  }
+
+  function drawFlags(c) {
+    const box = $("flagbox");
+    let h = "";
+    if (c.series && c.series.flags.length) {
+      h = "<span><b>Flagged by the forecast checks.</b> Check this forecast before using it:</span><ul>" +
+        c.series.flags.map((f) => "<li>" + esc(CHECK_NAMES[f.check] || f.check) + ": " + esc(f.message) +
+          (f.ds ? " (" + fmtDate(f.ds, true) + ")" : "") + "</li>").join("") + "</ul>";
+    } else if (!c.series && CHECKS_RAN && state.flaggedOnly) {
+      // name the flagged series; each opens that series in the single-series view
+      const shown = c.matched.slice(0, FLAG_LIST_MAX);
+      h = "<span><b>Showing only the " + c.n + " flagged series.</b> Choose one to see why it was flagged:</span>" +
+        '<button type="button" data-flagged="0">Show all series</button><ul>' +
+        shown.map((x) => '<li><button type="button" class="lnk" data-open="' + esc(x.id) + '">' + esc(label(x)) +
+          "</button> — " + esc([...new Set(x.flags.map((f) => CHECK_NAMES[f.check] || f.check))].join(", ")) + "</li>").join("") +
+        (c.n > shown.length ? "<li>… and " + (c.n - shown.length) + " more (use the series list under Single series)</li>" : "") + "</ul>";
+    } else if (!c.series && CHECKS_RAN) {
+      const k = c.matched.filter((x) => x.flags.length).length;
+      if (k) h = "<span><b>" + k + " series</b> of the " + c.n + " in this selection " +
+        (k === 1 ? "was" : "were") + " flagged by the forecast checks.</span>" +
+        '<button type="button" data-flagged="1">Show flagged only</button>';
+    }
+    box.innerHTML = h;
+    box.hidden = !h;
+    const b = box.querySelector("button[data-flagged]");
+    if (b) b.addEventListener("click", () => setFlaggedOnly(b.dataset.flagged === "1"));
+    box.querySelectorAll("button[data-open]").forEach((o) => o.addEventListener("click", () => {
+      state.mode = "series"; state.seriesId = o.dataset.open; refresh();
+    }));
   }
 
   function drawTable(c) {
@@ -524,18 +597,21 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
     $("mode").querySelector('[data-mode="aggregate"]').disabled = !DIMS.length;
     $("seriesField").hidden = state.mode !== "series";
     const m = matching();
-    $("count").textContent = m.length + " of " + SERIES.length + " series selected";
+    $("count").textContent = m.length + " of " + SERIES.length + " series selected" +
+      (CHECKS_RAN ? " \u00b7 " + N_FLAGGED + " flagged by the checks" : "");
     if (!c) {
       $("title").textContent = "No series match this selection";
       $("subtitle").textContent = ""; $("kpis").textContent = ""; $("models").textContent = ""; $("notes").textContent = "";
+      $("flagbox").hidden = true;
       $("chartwrap").innerHTML = '<div class="empty">Choose a different combination.</div>';
       return;
     }
     if (state.mode === "series") fillSeriesSelect(m);
     const s = c.series;
-    $("title").textContent = s ? label(s) : titleText();
+    $("title").innerHTML = esc(s ? label(s) : titleText()) + (s && s.flags.length ? '<span class="badge">Flagged</span>' : "");
     $("subtitle").textContent = s ? "Single series · " + s.id : c.n + " series added up";
     drawKpis(c);
+    drawFlags(c);
     if (state.tab === "accuracy") {
       updateMenu(c);
       drawAccuracy();
@@ -547,11 +623,11 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
     $("legend").hidden = state.view === "table";
     $("rangebar").hidden = state.view === "table";
     const models = s && s.models.length ? "Forecast from: " + s.models.map((x) => x.name + " " + Math.round(x.weight * 100) + "%").join(" · ") : "";
-    $("models").textContent = s && s.fallback ? "Fallback forecast: this series had too many missing periods for the models." : models;
+    $("models").textContent = s && s.fallback ? "Fallback forecast (last value): this series had too many missing periods or too little history for the models." : models;
     const notes = [];
     if (!s) {
       const fb = c.matched.filter((x) => x.fallback).length;
-      if (fb) notes.push(fb + " of the " + c.n + " series use a fallback forecast (too many missing periods).");
+      if (fb) notes.push(fb + " of the " + c.n + " series use a fallback forecast (too many missing periods or too little history).");
       if (c.hcnt.some((k) => k > 0 && k < c.n)) notes.push("Some series have no value in some periods (they start later or have gaps), so those totals cover fewer series. Hover over the chart or open the Table to see how many.");
     }
     for (const l of c.lines) {
@@ -565,6 +641,7 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
     let h = '<span><i style="background:var(--hist)"></i>Actual</span>';
     if (state.final) h += '<span><i style="background:var(--fc);height:4px"></i>' + FINAL + "</span>";
     for (const l of c.lines) h += '<span><i style="background:' + mColor(l.name) + '"></i>' + esc(l.name) + "</span>";
+    if (flagMarks(c).length) h += '<span><i style="width:11px;height:11px;border:2px solid var(--warn);border-radius:50%;background:none"></i>Flagged by the checks</span>';
     $("legend").innerHTML = h;
   }
 
