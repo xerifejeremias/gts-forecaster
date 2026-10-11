@@ -108,6 +108,10 @@ output_rename: {}
 # Lowest allowed forecast. Volumes cannot be negative, so every model's predictions (backtest and
 # forecast) and the final forecast are raised to at least this value. null = no floor.
 forecast_floor: 0
+# Which models `forecast` runs: selected = only the models named in the selection (what the output
+# needs; decided 2026-10-12 after the code review: running all ~45 candidates took most of the forecast
+# time), all = every candidate, so the report's "Forecast lines" menu can show models no series uses.
+forecast_models: selected
 # Sanity checks of the final forecasts, per series against its own history (see forecast_checks.py):
 # outlier (a forecast step far from its neighbours, same method as the training outliers),
 # total_change (forecast total vs the same number of periods before), start_jump (first steps vs the

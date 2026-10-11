@@ -18,6 +18,7 @@ ENSEMBLE_WEIGHTS = ("equal", "inverse_error")
 ON_MODEL_ERROR = ("skip", "raise")
 FORECAST_MODES = ("frozen_selection", "frozen_models")
 FORECAST_CHECK_ACTIONS = ("warn", "raise", "off")
+FORECAST_MODELS = ("selected", "all")
 _ALLOWED_KEYS = {
     "frequency",
     "horizon",
@@ -55,6 +56,7 @@ _ALLOWED_KEYS = {
     "forecast_check_action",
     "forecast_check_threshold",
     "forecast_check_max_ratio",
+    "forecast_models",
 }
 _OPTIONAL_KEYS = {
     "horizon", "backtest_step", "known_future_columns", "future_features_path", "static_columns",
@@ -62,6 +64,7 @@ _OPTIONAL_KEYS = {
     "forecast_mode", "fitted_models_dir", "output_file", "output_rename",
     "forecast_floor", "runs_dir",
     "forecast_check_action", "forecast_check_threshold", "forecast_check_max_ratio",
+    "forecast_models",
 }
 
 
@@ -136,6 +139,9 @@ class RunConfig:
     forecast_check_action: str = "warn"
     forecast_check_threshold: float = 5.0
     forecast_check_max_ratio: float = 3.0
+    # Which models `forecast` runs (frozen_selection mode): "selected" = only those named in the
+    # selection (what the output needs), "all" = every candidate, for per-model lines in the report.
+    forecast_models: str = "selected"
 
     @property
     def is_partial_run(self) -> bool:
@@ -182,8 +188,9 @@ def _ml_features(profile: str, raw: Any) -> dict[str, dict[str, list]]:
         if not isinstance(settings, dict) or not settings or set(settings) - {"lags", "rolling_windows"}:
             raise ConfigError(f"{where}.{group} may only set lags and rolling_windows")
         for key, values in settings.items():
-            if not isinstance(values, list) or not all(_is_int(v) and v >= 1 for v in values):
-                raise ConfigError(f"{where}.{group}.{key} must be a list of whole numbers >= 1")
+            low = 2 if key == "rolling_windows" else 1  # a rolling statistic needs 2 values
+            if not isinstance(values, list) or not all(_is_int(v) and v >= low for v in values):
+                raise ConfigError(f"{where}.{group}.{key} must be a list of whole numbers >= {low}")
         if settings.get("lags") == []:
             raise ConfigError(f"{where}.{group}.lags needs at least one lag")
         out[group] = {k: list(v) for k, v in settings.items()}
@@ -373,6 +380,10 @@ def load_config(
     if isinstance(check_ratio, bool) or not isinstance(check_ratio, (int, float)) or not check_ratio > 1:
         raise ConfigError(f"forecast_check_max_ratio must be a number > 1, got {check_ratio!r}")
 
+    forecast_models = raw.get("forecast_models", "selected")
+    if forecast_models not in FORECAST_MODELS:
+        raise ConfigError(f"forecast_models must be one of {list(FORECAST_MODELS)}, got {forecast_models!r}")
+
     forecast_mode = raw.get("forecast_mode", "frozen_selection")
     if forecast_mode not in FORECAST_MODES:
         raise ConfigError(f"forecast_mode must be one of {list(FORECAST_MODES)}, got {forecast_mode!r}")
@@ -450,4 +461,5 @@ def load_config(
         forecast_check_action=check_action,
         forecast_check_threshold=float(check_threshold),
         forecast_check_max_ratio=float(check_ratio),
+        forecast_models=forecast_models,
     )

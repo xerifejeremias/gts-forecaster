@@ -153,6 +153,10 @@ class ProphetForecaster(PerSeriesForecaster):
 
     requires_packages: ClassVar[tuple[str, ...]] = ("prophet",)
     install_extra: ClassVar[str | None] = "prophet"
+    # Prophet optimises with Newton's method below 100 points and allows 10,000 iterations: on a
+    # (near) noise-free series it never converges and a fit took 36 s (measured 2026-10-11). Normal
+    # series converge in a few dozen iterations, so a cap only stops the runaway cases.
+    max_iterations: ClassVar[int] = 300
 
     def _fit_one(self, frame: pd.DataFrame):
         try:
@@ -168,7 +172,7 @@ class ProphetForecaster(PerSeriesForecaster):
         model = Prophet(**settings)
         for column in self.known_columns:
             model.add_regressor(column)
-        model.fit(frame)
+        model.fit(frame, iter=self.max_iterations)
         return model
 
     def _predict_one(self, model, rows: pd.DataFrame) -> np.ndarray:

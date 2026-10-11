@@ -65,11 +65,13 @@ def _weights(scores: Sequence[float], how: str) -> list[float]:
 
 
 def _ensemble_score(
-    result: BacktestResult, uid: str, members: Sequence[str], weights: Sequence[float], folds: Sequence[int]
+    result: BacktestResult, uid: str, members: Sequence[str], weights: Sequence[float], folds: Sequence[int],
+    predictions: pd.DataFrame | None = None,
 ) -> float:
-    """Backtest score of the weighted combination of the members' forecasts."""
+    """Backtest score of the weighted combination of the members' forecasts. `predictions`: this
+    series' rows of `result.predictions` (looked up once per series by the caller)."""
     metric_fn = get_metric(result.metric)
-    p = result.predictions
+    p = result.predictions if predictions is None else predictions
     p = p[(p[ID] == uid) & p[MODEL].isin(members) & p[FOLD].isin(folds) & ~p[IS_FILLED]]
     wide = p.pivot_table(index=[FOLD, DATE], columns=MODEL, values=PREDICTION)
     actual = p.drop_duplicates([FOLD, DATE]).set_index([FOLD, DATE])[TARGET].reindex(wide.index)
@@ -90,6 +92,54 @@ def _ensemble_score(
     return float(np.mean(values))
 
 
+def short_series_choice(
+    uid: str, length: int, models: Mapping[str, BaseForecaster],
+    short_series_models: Sequence[str], short_series_n: int,
+) -> list[str]:
+    """The fixed short-series ensemble of a series: the first `short_series_n` models of
+    `short_series_models` that exist and that it has enough data for."""
+    usable = [m for m in short_series_models if m in models and length >= models[m].min_train_length]
+    chosen = usable[:short_series_n]
+    if not chosen:
+        raise SelectionError(
+            f"series {uid} ({length} observations) cannot use any short-series model "
+            f"{list(short_series_models)}"
+        )
+    return chosen
+
+
+NOT_BACKTESTED_NOTE = "not in the last backtest (new or repaired series): fixed short-series ensemble"
+
+
+def add_missing_series(
+    selection: Mapping, lengths: pd.Series, models: Mapping[str, BaseForecaster],
+    short_series_models: Sequence[str], short_series_n: int,
+) -> tuple[dict, list[str]]:
+    """A copy of a saved selection (selection.json content) with an entry for every series in
+    `lengths` (unique_id -> training observations) that has none: series that are new since the
+    last backtest, or that had the fallback then. They get the fixed short-series ensemble until
+    the next backtest chooses for them. Returns the selection and the ids that were added."""
+    series = dict(selection["series"])
+    added = []
+    for uid, length in lengths.items():
+        if uid in series:
+            continue
+        chosen = short_series_choice(uid, int(length), models, short_series_models, short_series_n)
+        series[uid] = {
+            "locked": False,
+            "models": [{"name": m, "weight": 1.0 / len(chosen)} for m in chosen],
+            "note": NOT_BACKTESTED_NOTE,
+        }
+        added.append(uid)
+    if added:
+        logger.warning(
+            "%d series are not in the saved selection (new since the last backtest, or no longer a "
+            "fallback); they get the short-series ensemble until the next backtest, e.g. %s",
+            len(added), added[:3],
+        )
+    return {**selection, "series": series}, added
+
+
 def select_models(
     result: BacktestResult,
     models: Mapping[str, BaseForecaster],
@@ -106,25 +156,20 @@ def select_models(
         raise SelectionError("top_n and short_series_n must be >= 1")
     order = {name: k for k, name in enumerate(models)}
 
-    scores = result.scores
+    # group once: filtering the whole tables per series grows with the square of the series count
+    scores_by_id = {uid: g for uid, g in result.scores.groupby(ID, sort=False)}
+    predictions_by_id = {uid: g for uid, g in result.predictions.groupby(ID, sort=False)}
+    empty_scores = result.scores.iloc[0:0]
     series: dict[str, SeriesSelection] = {}
     rows: list[dict] = []
 
     for uid, length in result.series_lengths.items():
-        mine = scores[scores[ID] == uid]
+        mine = scores_by_id.get(uid, empty_scores)
         reference_folds = sorted(mine.loc[mine[MODEL] == REFERENCE_MODEL, FOLD].unique())
 
         # 4. too short to backtest -> fixed ensemble
         if not reference_folds:
-            usable = [
-                m for m in short_series_models if m in models and length >= models[m].min_train_length
-            ]
-            chosen = usable[:short_series_n]
-            if not chosen:
-                raise SelectionError(
-                    f"series {uid} ({length} observations) cannot use any short-series model "
-                    f"{list(short_series_models)}"
-                )
+            chosen = short_series_choice(uid, length, models, short_series_models, short_series_n)
             note = "too little history to backtest: fixed short-series ensemble"
             series[uid] = SeriesSelection(tuple((m, 1.0 / len(chosen)) for m in chosen), note)
             rows += [
@@ -157,6 +202,6 @@ def select_models(
         for rank, (score, _, name) in enumerate(competing, start=1):
             rows.append({ID: uid, MODEL: name, "n_folds": len(reference_folds), SCORE: score, "rank": rank, "weight": chosen_weight.get(name, 0.0), "note": None})
         if len(names) > 1:
-            rows.append({ID: uid, MODEL: ENSEMBLE_ROW, "n_folds": len(reference_folds), SCORE: _ensemble_score(result, uid, names, weights, reference_folds), "rank": np.nan, "weight": 1.0, "note": f"top {len(names)} models, {ensemble_weights} weights"})
+            rows.append({ID: uid, MODEL: ENSEMBLE_ROW, "n_folds": len(reference_folds), SCORE: _ensemble_score(result, uid, names, weights, reference_folds, predictions_by_id.get(uid)), "rank": np.nan, "weight": 1.0, "note": f"top {len(names)} models, {ensemble_weights} weights"})
 
     return Selection(series=series, table=pd.DataFrame(rows, columns=TABLE_COLUMNS))

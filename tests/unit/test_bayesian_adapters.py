@@ -27,6 +27,7 @@ SLOW = ("prophet", "orbit_dlt", "orbit_lgt")
 
 class _Calls:
     prophet_args = []
+    prophet_fit_kwargs = []
     orbit_args = []
     regressors = []
 
@@ -40,7 +41,8 @@ def _fake_prophet(fail_when_mean_above=None):
         def add_regressor(self, name):
             self.regressors.append(name)
 
-        def fit(self, df):
+        def fit(self, df, **kwargs):
+            _Calls.prophet_fit_kwargs.append(kwargs)
             assert list(df.columns)[:2] == ["ds", "y"]
             assert list(df.columns)[2:] == self.regressors
             if fail_when_mean_above is not None and df["y"].mean() > fail_when_mean_above:
@@ -295,3 +297,12 @@ def test_failing_on_every_series_stops_instead_of_faking_a_forecast(monkeypatch)
     _install(monkeypatch, fail_when_mean_above=-1.0)  # every series fails
     with pytest.raises(RuntimeError, match="failed on all 2 series.*stan failed"):
         ProphetForecaster(season_length=12, freq="MS").fit(_train())
+
+
+def test_prophet_fit_has_an_iteration_cap(monkeypatch):
+    # Newton's method on a noise-free short series ran Prophet's 10,000 iterations (36 s per fit)
+    _install(monkeypatch)
+    _Calls.prophet_fit_kwargs.clear()
+    ProphetForecaster(season_length=12, freq="MS").fit(_train(1))
+    assert _Calls.prophet_fit_kwargs == [{"iter": ProphetForecaster.max_iterations}]
+    assert 0 < ProphetForecaster.max_iterations < 10_000

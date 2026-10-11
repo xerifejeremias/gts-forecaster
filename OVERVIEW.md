@@ -740,6 +740,25 @@ the tree settings: more similar candidates do not help out of sample with 2-3 fo
 on real data.** Options noted for then: remove them, or replace auto_ets / auto_theta by a cheaper fixed
 version (e.g. ets_damped, theta_standard) where the accuracy is the same (check with the fair hold-out).
 
+## Code review (2026-10-12)
+
+High-effort review of `src/gts_forecaster` (built-in code-review). 8 findings, all fixed with tests (623 tests):
+1. **Series new since the last backtest stopped forecast and train** (selection.json had to cover every
+   series). Now `selection.add_missing_series` gives a series without an entry the fixed short-series
+   ensemble (`short_series_choice`, same rule as the backtest) with a warning, until the next backtest.
+   Matters because brand-new series get the last-value fallback and later grow into modelled series.
+2. **Prophet had no iteration cap**: `model.fit(frame, iter=ProphetForecaster.max_iterations)` (300).
+3. **Selection was quadratic in the number of series**: scores and predictions are grouped once.
+4. **Forecast fitted every candidate model**: new config key `forecast_models` (default `selected`: only the
+   models named in the selection; `all`: every candidate, for per-model lines in the report). On the
+   synthetic data the selections use 28-32 of 35-40 candidates (top 3 per series), so the gain is small
+   now (daily forecast 284 s vs 291 s); it grows once the catalog is pruned.
+5. **The backtest wrote the selection before the backtest forecasts file it names**: files first now.
+6. **A per-frequency lags mapping without the current frequency** used the adapter default instead of the
+   profile's `ml_features`: the catalog fills the missing entry with the profile default.
+7. **AutoARIMA's minimum history ignored `options: {season_length: ...}`**: it follows that value now.
+8. **`ml_features` accepted rolling windows of 1** (silently dropped): windows must be >= 2.
+
 ## Next steps (updated 2026-10-11)
 
 1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily
@@ -753,7 +772,7 @@ version (e.g. ets_damped, theta_standard) where the accuracy is the same (check 
 4. Optional: Prophet (`--extras prophet`, then `--no-fast-only`); Orbit needs a C++ toolchain on Windows.
 4b. On real data: decide whether to prune the tree-model settings and the ETS/Theta versions (see "Tree-model
     settings" and "AutoETS and AutoTheta versions"); both add run time without a gain on the synthetic data.
-5. **Independent code review** (the user wants it last). Known: `ruff check` reports older line-length and
+5. **Code review**: done 2026-10-12 (see "Code review"); lint clean-up still open. Known: `ruff check` reports older line-length and
    import-order issues across src and tests; the number of pytest warnings varies between identical full runs
    (124 to 2882, almost all attributed to tests/unit/test_outliers.py, none when that file runs alone).
 

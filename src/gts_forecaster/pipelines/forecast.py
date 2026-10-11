@@ -27,6 +27,7 @@ from gts_forecaster.cleaning.outliers import OUTLIER_ACTIONS, OUTLIER_METHODS, h
 from gts_forecaster.columns import ID
 from gts_forecaster.config import FORECAST_MODES, ON_MODEL_ERROR, ConfigError, load_config
 from gts_forecaster.contracts.errors import DataContractError
+from gts_forecaster.contracts.selection_schema import validate_selection
 from gts_forecaster.data_preparation import PreparedInput, limit_series, prepare_input_data
 from gts_forecaster.features.known_future import attach_known_future, load_known_future
 from gts_forecaster.forecast_checks import CHECKS_FILE, check_forecasts, report_flags
@@ -37,6 +38,7 @@ from gts_forecaster.models.store import (
 )
 from gts_forecaster.output import build_output, write_output
 from gts_forecaster.registry import read_selection, registry_path, selection_file
+from gts_forecaster.selection import add_missing_series
 from gts_forecaster.splitting import SplitError, forecast_split
 
 logger = logging.getLogger(__name__)
@@ -129,9 +131,7 @@ def run_forecast_pipeline(
     )
     # fast_only on (default) -> selection_fast.json, off -> selection.json: same model set as this run
     selection_path = registry_path(cfg.registry_dir, cfg.frequency) / selection_file(cfg.fast_only)
-    selection = read_selection(
-        selection_path, models, expected_ids=prepared.data[ID].unique().tolist()
-    )
+    selection = read_selection(selection_path, models)
     if selection["meta"].get("horizon") not in (None, cfg.horizon):
         logger.warning(
             "forecast horizon %s differs from the backtest horizon %s",
@@ -140,10 +140,16 @@ def run_forecast_pipeline(
         )
 
     split, cleaned = training_split(prepared)
+    # series without an entry (new since the backtest) get the short-series ensemble, not a stop
+    selection, _ = add_missing_series(
+        selection, split.train_lengths, models, cfg.short_series_models, cfg.short_series_n
+    )
+    validate_selection(selection, models, expected_ids=prepared.data[ID].unique().tolist())
     fitted = None
-    if cfg.forecast_mode == "frozen_models":
+    if cfg.forecast_mode == "frozen_models" or cfg.forecast_models == "selected":
         used = selected_model_names(selection)
         models = {name: models[name] for name in used}  # only what the selection needs
+    if cfg.forecast_mode == "frozen_models":
         fitted = load_frozen_models(prepared, models)
     if cfg.known_future_columns:
         source = known_future if known_future is not None else cfg.future_features_path

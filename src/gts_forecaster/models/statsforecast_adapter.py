@@ -204,9 +204,10 @@ class AutoARIMAForecaster(StatsForecastAdapter):
 
     @property
     def min_train_length(self) -> int:
-        if self.min_length is not None or "season_length" in (self.options or {}):
-            return super().min_train_length
-        m = self._effective_season()
+        if self.min_length is not None:
+            return int(self.min_length)
+        # the season length StatsForecast really gets: from options, else the effective one
+        m = int((self.options or {}).get("season_length", self._effective_season()))
         return max(self._min_obs, 2 * m if m > 1 else 0)
 
     def _model_kwargs(self) -> dict[str, Any]:

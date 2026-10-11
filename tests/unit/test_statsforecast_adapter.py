@@ -361,3 +361,10 @@ def test_fallback_series_are_reported(monkeypatch, caplog):
         model.fit(train)
     assert model.fallback_ids_ == [make_uuid(0)]
     assert "naive forecast instead" in caplog.text
+
+
+def test_arima_minimum_history_follows_the_season_length_in_options():
+    # weekly profile (52) with a 13-week cycle in options: two cycles of 13, not of 52
+    assert AutoARIMAForecaster(season_length=52, options={"season_length": 13}).min_train_length == 26
+    assert AutoARIMAForecaster(season_length=12, options={"season_length": 1}).min_train_length == 6
+    assert AutoARIMAForecaster(season_length=52, min_length=40).min_train_length == 40

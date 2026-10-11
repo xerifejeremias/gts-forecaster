@@ -33,6 +33,7 @@ from gts_forecaster.models.catalog import build_models_from_config
 from gts_forecaster.models.store import fitted_models_path, save_fitted_models
 from gts_forecaster.pipelines.forecast import selected_model_names, training_split
 from gts_forecaster.registry import read_selection, registry_path, selection_file
+from gts_forecaster.selection import add_missing_series
 from gts_forecaster.splitting import SplitError
 
 logger = logging.getLogger(__name__)
@@ -57,12 +58,13 @@ def run_train_pipeline(prepared: PreparedInput, *, config_dir: Path | None = Non
         cfg, config_dir, getattr(prepared, "static", None), apply_model_filter=False
     )
     selection = read_selection(
-        registry_path(cfg.registry_dir, cfg.frequency) / selection_file(cfg.fast_only),
-        models,
-        expected_ids=prepared.data[ID].unique().tolist(),
+        registry_path(cfg.registry_dir, cfg.frequency) / selection_file(cfg.fast_only), models
+    )
+    split, _ = training_split(prepared)
+    selection, _ = add_missing_series(  # new series: short-series ensemble (see forecast)
+        selection, split.train_lengths, models, cfg.short_series_models, cfg.short_series_n
     )
     names = selected_model_names(selection)
-    split, _ = training_split(prepared)
 
     fitted, failed, rows = {}, {}, []
     for number, name in enumerate(names, start=1):

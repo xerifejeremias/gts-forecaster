@@ -554,3 +554,12 @@ def test_profile_ml_features_are_the_default_lags_per_group():
     assert built["random_forest"]._resolved_lags() == (1, 4) and built["random_forest"]._resolved_windows() == (4,)
     assert built["ridge"]._resolved_lags() == (1, 2, 3, 12)  # linear group not given: adapter default
     assert built["own"]._resolved_lags() == (1, 2)  # models.yaml lags win
+
+
+def test_per_frequency_lags_without_this_frequency_get_the_profile_default():
+    specs = {"daily_only": {"type": "random_forest", "params": {"lags": {"daily": [1, 7]}}, "features": None}}
+    defaults = {"trees": {"lags": [1, 2, 3, 4, 5]}}
+    built = build_models(specs, 1, {"calendar_only": _builder()}, pandas_freq="YS", ml_features=defaults)
+    assert built["daily_only"]._resolved_lags() == (1, 2, 3, 4, 5)  # yearly: not the adapter default 1-3
+    daily = build_models(specs, 7, {"calendar_only": _builder()}, pandas_freq="D", ml_features=defaults)
+    assert daily["daily_only"]._resolved_lags() == (1, 7)  # its own daily entry is kept

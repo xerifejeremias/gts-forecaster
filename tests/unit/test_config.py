@@ -92,6 +92,7 @@ def test_shipped_profiles_ml_features():
     "  ml_features: {trees: {lags: [0, 1]}}\n",
     "  ml_features: {trees: {lags: []}}\n",
     "  ml_features: {trees: {lags: season}}\n",
+    "  ml_features: {trees: {rolling_windows: [1, 7]}}\n",  # a rolling statistic needs >= 2 values
 ])
 def test_invalid_ml_features_are_rejected(tmp_path, bad):
     text = open(project_root() / "config" / "frequency_profiles.yaml", encoding="utf-8").read()

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gts_forecaster.config import load_config
+from gts_forecaster.config import ConfigError, load_config
 from gts_forecaster.forecasting import ForecastError, combine_forecasts, forecast_by_model
 from gts_forecaster.models.catalog import build_models, load_model_specs
 from helpers import BASELINES
@@ -179,3 +179,67 @@ def test_pipeline_stops_without_selection_file(tmp_path):
     )
     with pytest.raises(DataContractError):
         run_forecast_pipeline(prepared, output_dir=tmp_path / "out")
+
+
+def _pipeline_setup(tmp_path, **overrides):
+    from gts_forecaster.pipelines.backtest import run_backtest_pipeline
+
+    cfg = load_config({"frequency": "monthly", "horizon": 3, "n_folds": 2, "top_n": 2, "registry_dir": tmp_path,
+                       "backtesting_dir": tmp_path / "bt", **overrides})
+    df = _panel()
+    empty = pd.DataFrame({"unique_id": [], "fallback_value": []})
+    prepared = SimpleNamespace(data=df, config=cfg, cutoff=df["ds"].max(), fallback=empty, static=_static(df))
+    run_backtest_pipeline(prepared)
+    return cfg, df, empty
+
+
+def _static(df):
+    from helpers import static_table
+
+    return static_table(df["unique_id"])
+
+
+def test_series_new_since_the_backtest_gets_the_short_series_ensemble(tmp_path, caplog):
+    from gts_forecaster.pipelines.forecast import run_forecast_pipeline
+
+    cfg, df, empty = _pipeline_setup(tmp_path)
+    # a product that appears after the backtest: not in selection.json
+    new = df[df["unique_id"] == df["unique_id"].iloc[0]].tail(6).assign(unique_id="new_product")
+    data = pd.concat([df, new], ignore_index=True)
+    prepared = SimpleNamespace(data=data, config=cfg, cutoff=data["ds"].max(), fallback=empty, static=_static(data))
+    out = run_forecast_pipeline(prepared, output_dir=tmp_path / "out")
+    assert "new_product" in set(out.forecast["unique_id"])
+    assert out.forecast.loc[out.forecast["unique_id"] == "new_product", "forecast"].notna().all()
+    assert "not in the saved selection" in caplog.text
+
+
+def test_forecast_runs_only_the_selected_models_unless_asked_for_all(tmp_path):
+    import json
+
+    from gts_forecaster.pipelines.forecast import run_forecast_pipeline, selected_model_names
+
+    cfg, df, empty = _pipeline_setup(tmp_path)
+    selection = json.loads((tmp_path / "monthly" / "selection_fast.json").read_text())
+    used = set(selected_model_names(selection))
+    prepared = SimpleNamespace(data=df, config=cfg, cutoff=df["ds"].max(), fallback=empty, static=_static(df))
+    out = run_forecast_pipeline(prepared, output_dir=tmp_path / "out")
+    assert set(out.by_model.columns) - {"unique_id", "ds"} == used
+    cfg_all = load_config({"frequency": "monthly", "horizon": 3, "registry_dir": tmp_path,
+                           "backtesting_dir": tmp_path / "bt", "forecast_models": "all"})
+    prepared_all = SimpleNamespace(data=df, config=cfg_all, cutoff=df["ds"].max(), fallback=empty, static=_static(df))
+    out_all = run_forecast_pipeline(prepared_all, output_dir=tmp_path / "out_all")
+    assert set(out_all.by_model.columns) - {"unique_id", "ds"} > used
+    with pytest.raises(ConfigError, match="forecast_models"):
+        load_config({"frequency": "monthly", "forecast_models": "some"})
+
+
+def test_backtest_file_is_written_before_the_selection_that_names_it(tmp_path, monkeypatch):
+    from gts_forecaster.pipelines import backtest as backtest_module
+
+    def broken_write(path, doc):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(backtest_module, "write_json_atomic", broken_write)
+    with pytest.raises(OSError, match="disk full"):
+        _pipeline_setup(tmp_path)
+    assert list((tmp_path / "bt" / "monthly").glob("backtest_forecasts_*.csv"))

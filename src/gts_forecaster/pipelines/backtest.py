@@ -146,6 +146,21 @@ def run_backtest_pipeline(
     # The forecasts vs actuals of this backtest; the report's accuracy view reads this file.
     forecasts_path = new_backtest_forecasts_path(backtest_dir, run_time or datetime.now())
     meta["backtest_forecasts_file"] = forecasts_path.name
+    # Written before the selections, which name this file: an interruption in between must not
+    # leave a selection pointing to a file that does not exist.
+    write_backtest_forecasts_atomic(forecasts_path, backtest_forecasts_table(result))
+    if cfg.outlier_method != "none":  # same timestamp as the forecasts file
+        outliers_path = forecasts_path.with_name(
+            forecasts_path.name.replace("backtest_forecasts", "backtest_outliers")
+        )
+        result.outliers.rename(columns={"unique_id": "uuid"}).to_csv(outliers_path, index=False)
+    stamp = forecasts_path.name.replace("backtest_forecasts", "")
+    timings_path = forecasts_path.with_name(f"backtest_timings{stamp}")
+    result.timings.to_csv(timings_path, index=False)
+    failures_path = None
+    if len(result.failures):
+        failures_path = forecasts_path.with_name(f"backtest_failures{stamp}")
+        result.failures.to_csv(failures_path, index=False)
     written: dict[str, tuple[Path, dict]] = {}
     all_kept: list[str] = []
     full_left_untouched = False
@@ -184,19 +199,6 @@ def run_backtest_pipeline(
     selection_path, document = written[main_variant]
     scores_path = folder / scores_file(cfg.fast_only)
     kept = all_kept
-    write_backtest_forecasts_atomic(forecasts_path, backtest_forecasts_table(result))
-    if cfg.outlier_method != "none":  # same timestamp as the forecasts file
-        outliers_path = forecasts_path.with_name(
-            forecasts_path.name.replace("backtest_forecasts", "backtest_outliers")
-        )
-        result.outliers.rename(columns={"unique_id": "uuid"}).to_csv(outliers_path, index=False)
-    stamp = forecasts_path.name.replace("backtest_forecasts", "")
-    timings_path = forecasts_path.with_name(f"backtest_timings{stamp}")
-    result.timings.to_csv(timings_path, index=False)
-    failures_path = None
-    if len(result.failures):
-        failures_path = forecasts_path.with_name(f"backtest_failures{stamp}")
-        result.failures.to_csv(failures_path, index=False)
     return BacktestOutput(
         selection_path, scores_path, forecasts_path, document, result, kept,
         timings_path, failures_path, partial, written, full_left_untouched,

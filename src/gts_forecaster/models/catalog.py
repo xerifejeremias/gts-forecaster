@@ -19,6 +19,7 @@ import yaml
 
 from gts_forecaster.config import ConfigError, project_root
 from gts_forecaster.features.builder import FeatureBuilder
+from gts_forecaster.features.calendar_features import frequency_kind
 from gts_forecaster.features.builder import build_feature_builders, load_feature_config
 from gts_forecaster.features.errors import FeatureError
 from gts_forecaster.models.base import BaseForecaster
@@ -180,7 +181,14 @@ def build_models(
         group = (ml_features or {}).get(getattr(cls, "feature_group", ""), {})
         for key in ("lags", "rolling_windows"):
             if key in group and key in init_parameters:
-                params.setdefault(key, list(group[key]))
+                value = params.get(key)
+                if value is None:
+                    params[key] = list(group[key])
+                elif isinstance(value, Mapping) and pandas_freq is not None:
+                    # per-frequency lags without an entry for this frequency: the profile default
+                    kind = frequency_kind(pandas_freq)
+                    if value.get(kind) is None:
+                        params[key] = {**value, kind: list(group[key])}
         try:
             models[name] = cls(**params)
         except (TypeError, ValueError) as exc:
