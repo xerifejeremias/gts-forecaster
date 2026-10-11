@@ -110,9 +110,9 @@ it, marks the rest skipped, and exits 1.
 - The code review is planned last, after the real runs work.
 
 ## Two traps
-- **This folder is not its own git repo.** The enclosing repo is rooted at `C:\Users\Admin` and no
-  project file is tracked in it. Do not run `git add` / `git commit` here expecting to version the
-  project; ask the user before touching git at all.
+- **Git: this folder has its own repo** (set up 2026-10-11, branch `main`, no remote yet). There is
+  also an unrelated repo rooted at `C:\Users\Admin`; it does not track project files. Commit only
+  when the user asks. Never commit real (production) data.
 - **The "Folder layout" sketch in OVERVIEW.md is partly aspirational.** `io/writers.py`,
   `prophet_adapter.py`, `orbit_adapter.py`, `tests/conftest.py`, `tests/fixtures/` and
   `tests/integration/` do not exist (Prophet and Orbit live in `models/bayesian_adapters.py`).
