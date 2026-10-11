@@ -712,6 +712,34 @@ re-judge on real data.
   `fast_only: true` stays the default. Real data with holidays, promotions or trend changes (Prophet's
   strengths) may differ: worth one `--no-fast-only` backtest there.
 
+## AutoETS and AutoTheta versions (2026-10-11/12, requested by the user)
+
+Eight versions added to models.yaml (comments there), 5 per model with the defaults: `ets_damped` (ZZZ,
+damped trend), `ets_no_trend` (ZNZ), `ets_additive_season` (ZZA), `ets_multiplicative_season` (ZZM);
+`theta_additive` (additive decomposition), `theta_standard` (STM), `theta_optimized` (OTM), `theta_dynamic`
+(DOTM); the Theta versions keep `max_history_years: {daily: 5}`. Checked in StatsForecast 2.1 first: forcing
+a seasonal ETS form with season length 1 is an error ("Nonseasonal data"), with season 52 it silently fits a
+non-seasonal model, so the two seasonal ETS versions skip yearly and weekly; `theta_additive` skips yearly
+(no decomposition there); a multiplicative ETS season fails on series with values <= 0 ("no model able to
+be fitted"), which then get the adapter's naive fallback (17 of ~40 synthetic daily series, 1 monthly).
+Pipeline tests leave the versions out (`ets_`, `theta_` added to `tests/helpers.TUNING_VARIANT_PREFIXES`).
+
+Partial backtests (compared on common points): the versions are within ~1 point of each other at every
+frequency (yearly 19.5-20.8%, monthly 12.7-13.9%, weekly 28.4-28.9%, daily ETS 23.7% for all four non-
+multiplicative versions, Theta 24.4-24.5%; ets_multiplicative_season 30.0% on daily because of the
+fallbacks). The fixed versions cost far less than the automatic search for the same accuracy: daily
+ets_no_trend 21 s vs auto_ets 115 s, theta_standard 13 s vs auto_theta 121 s (3 folds, 45 series); weekly
+ets_no_trend 8.5 s vs auto_ets 35 s.
+
+Full runs (yearly 3.2 min, monthly 3.6, weekly 6.0, daily 19.8 instead of 12.8): a version is in the top 3 /
+ranked first in yearly 2 / 1 of 40 series, monthly 6 / 1 of 30, weekly 2 / 1 of 45, daily 25 / 10 of 50.
+Fair hold-out with vs without the versions (same backtest): yearly 16.7% -> 16.9%, monthly 12.3% -> 12.5%,
+weekly 24.9% -> 24.9%, daily 23.2% -> 23.2% (series >5% better / worse: 0/1, 0/1, 0/1, 1/5). Same lesson as
+the tree settings: more similar candidates do not help out of sample with 2-3 folds per series.
+**Decided by the user (2026-10-12): keep all versions competing for now, as with the tree settings; decide
+on real data.** Options noted for then: remove them, or replace auto_ets / auto_theta by a cheaper fixed
+version (e.g. ets_damped, theta_standard) where the accuracy is the same (check with the fair hold-out).
+
 ## Next steps (updated 2026-10-11)
 
 1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily
@@ -723,7 +751,8 @@ re-judge on real data.
    `runs/` folders); confirm the platform's column names (`output_rename`); check the outlier threshold,
    minimum history, ensemble size and number of folds on real data with the Accuracy tab.
 4. Optional: Prophet (`--extras prophet`, then `--no-fast-only`); Orbit needs a C++ toolchain on Windows.
-4b. On real data: decide whether to prune the tree-model settings (see "Tree-model settings").
+4b. On real data: decide whether to prune the tree-model settings and the ETS/Theta versions (see "Tree-model
+    settings" and "AutoETS and AutoTheta versions"); both add run time without a gain on the synthetic data.
 5. **Independent code review** (the user wants it last). Known: `ruff check` reports older line-length and
    import-order issues across src and tests; the number of pytest warnings varies between identical full runs
    (124 to 2882, almost all attributed to tests/unit/test_outliers.py, none when that file runs alone).

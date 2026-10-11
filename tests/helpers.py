@@ -52,10 +52,11 @@ def static_table(ids, columns=("market", "product", "company")) -> pd.DataFrame:
     return pd.DataFrame({"unique_id": ids, **{c: [f"{c}_{k % 2}" for k in range(len(ids))] for c in columns}})
 
 
-# The extra LightGBM / XGBoost / random forest settings in models.yaml (lgbm_*, xgb_*, rf_*) are tuning
+# The extra LightGBM / XGBoost / random forest / ETS / Theta settings in models.yaml (lgbm_*, xgb_*, rf_*,
+# ets_*, theta_*) are tuning
 # variants of models the catalog already has. Pipeline tests check the pipeline, not each setting, so
 # they leave them out (otherwise the suite takes three times as long).
-TUNING_VARIANT_PREFIXES = ("lgbm_", "xgb_", "rf_")
+TUNING_VARIANT_PREFIXES = ("lgbm_", "xgb_", "rf_", "ets_", "theta_")
 
 
 def use_core_catalog(monkeypatch):

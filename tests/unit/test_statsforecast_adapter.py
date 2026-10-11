@@ -27,8 +27,10 @@ STATS_TYPES = ("auto_ets", "auto_arima", "auto_theta", "mstl")
 
 
 def _baseline_and_stats_specs():
-    # only the models these tests are about, whichever other model libraries are installed
-    return load_model_specs(types=[*BASELINES, *STATS_TYPES])
+    # only the models these tests are about, whichever other model libraries are installed: the
+    # default entry of each type (named like the type), not the tuning versions (ets_*, theta_*)
+    specs = load_model_specs(types=[*BASELINES, *STATS_TYPES])
+    return {name: spec for name, spec in specs.items() if name == spec["type"]}
 
 
 def _fake_library(unique_id_as_index=False, shift_dates=False, drop_series=None):

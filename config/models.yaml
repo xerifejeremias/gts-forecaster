@@ -32,6 +32,52 @@ auto_theta:
   type: auto_theta
   params:
     max_history_years: {daily: 5}
+
+# ---- AutoETS and AutoTheta variants (2026-10-11, requested by the user). `options` go to the
+# StatsForecast model. ETS model codes: error / trend / season, each A (additive), M (multiplicative),
+# N (none) or Z (chosen automatically). Seasonal settings are skipped for yearly data (season length 1:
+# StatsForecast refuses them) and for weekly data (season 52 is over the ETS limit of 24, so they would
+# silently be non-seasonal). Multiplicative seasonality needs values > 0: a series with zeros or negative
+# values gets the naive forecast in that model's place (logged as a fallback).
+ets_damped:                    # trend that flattens out over the horizon
+  type: auto_ets
+  params:
+    options: {model: ZZZ, damped: true}
+ets_no_trend:                  # level and seasonality only: no trend extrapolation
+  type: auto_ets
+  params:
+    options: {model: ZNZ}
+ets_additive_season:           # seasonal swings of constant size
+  type: auto_ets
+  skip_frequencies: [yearly, weekly]
+  params:
+    options: {model: ZZA}
+ets_multiplicative_season:     # seasonal swings that grow with the level (volume data)
+  type: auto_ets
+  skip_frequencies: [yearly, weekly]
+  params:
+    options: {model: ZZM}
+theta_additive:                # additive seasonal decomposition (default: multiplicative)
+  type: auto_theta
+  skip_frequencies: [yearly]   # no seasonal decomposition on yearly data: same as auto_theta
+  params:
+    options: {decomposition_type: additive}
+    max_history_years: {daily: 5}
+theta_standard:                # classic Theta method (STM)
+  type: auto_theta
+  params:
+    options: {model: STM}
+    max_history_years: {daily: 5}
+theta_optimized:               # optimised theta coefficient (OTM)
+  type: auto_theta
+  params:
+    options: {model: OTM}
+    max_history_years: {daily: 5}
+theta_dynamic:                 # dynamic optimised Theta (DOTM)
+  type: auto_theta
+  params:
+    options: {model: DOTM}
+    max_history_years: {daily: 5}
 mstl:
   type: mstl          # needs a seasonal period, so it is skipped for yearly data
 
