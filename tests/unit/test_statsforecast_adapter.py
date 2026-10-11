@@ -26,6 +26,11 @@ from helpers import BASELINES, make_panel, make_uuid
 STATS_TYPES = ("auto_ets", "auto_arima", "auto_theta", "mstl")
 
 
+def _baseline_and_stats_specs():
+    # only the models these tests are about, whichever other model libraries are installed
+    return load_model_specs(types=[*BASELINES, *STATS_TYPES])
+
+
 def _fake_library(unique_id_as_index=False, shift_dates=False, drop_series=None):
     class FakeModel:
         offset = 0.0
@@ -147,7 +152,7 @@ def test_options_are_passed_on_and_override_defaults(monkeypatch):
     AutoETSForecaster(season_length=2, freq="MS", options={"bonus": 5.0}).fit(train)
     fitted = stats_forecast.created[-1]
     assert fitted.models[0].kwargs == {"bonus": 5.0}
-    assert fitted.freq == "MS" and fitted.n_jobs == 1
+    assert fitted.freq == "MS" and fitted.n_jobs == 1  # no process start-up cost by default
     assert fitted.fallback_model is not None
     AutoETSForecaster(season_length=2, freq="MS", fallback=False, n_jobs=4).fit(train)
     assert stats_forecast.created[-1].fallback_model is None
@@ -223,7 +228,8 @@ def test_clone_and_params_roundtrip():
     clone = model.clone()
     assert clone is not model and clone.get_params() == model.get_params()
     assert set(model.get_params()) == {
-        "season_length", "freq", "options", "n_jobs", "fallback", "min_length"
+        "season_length", "freq", "options", "n_jobs", "fallback", "min_length",
+        "max_history_years",
     }
 
 
@@ -236,17 +242,17 @@ def test_catalog_registers_the_types():
 
 def test_catalog_skips_models_whose_library_is_missing(monkeypatch, caplog):
     monkeypatch.setitem(sys.modules, "statsforecast", None)
-    built = build_models(load_model_specs(), 12, pandas_freq="MS")
+    built = build_models(_baseline_and_stats_specs(), 12, pandas_freq="MS")
     assert set(built) == set(BASELINES)
     assert "statsforecast" in caplog.text and "--extras stats" in caplog.text
 
 
 def test_catalog_builds_stats_models_with_season_and_freq(monkeypatch):
     _install(monkeypatch)
-    built = build_models(load_model_specs(), 12, pandas_freq="MS")
+    built = build_models(_baseline_and_stats_specs(), 12, pandas_freq="MS")
     assert set(built) == set(BASELINES) | set(STATS_TYPES)
     assert built["auto_ets"].season_length == 12 and built["auto_ets"].freq == "MS"
-    yearly = build_models(load_model_specs(), 1, pandas_freq="YS")
+    yearly = build_models(_baseline_and_stats_specs(), 1, pandas_freq="YS")
     assert "mstl" not in yearly and "auto_ets" in yearly
 
 
@@ -280,6 +286,51 @@ def test_mstl_minimum_follows_the_longest_period():
     assert MSTLForecaster(season_length=12).min_train_length == 24
     with pytest.raises(ValueError, match="periods"):
         MSTLForecaster(season_length=7, options={"season_length": [7, 1]}).min_train_length
+
+
+def test_arima_drops_seasonality_for_long_seasons(monkeypatch):
+    stats_forecast = _install(monkeypatch)
+    train = _train(1, 60)
+    # weekly (52) is over the limit: non-seasonal ARIMA, so it also needs far less history
+    AutoARIMAForecaster(season_length=52, freq="MS").fit(train)
+    assert stats_forecast.created[-1].models[0].season_length == 1
+    assert AutoARIMAForecaster(season_length=52).min_train_length == 6
+    # monthly (12) and daily (7) keep their season
+    AutoARIMAForecaster(season_length=12, freq="MS").fit(train)
+    assert stats_forecast.created[-1].models[0].season_length == 12
+    assert AutoARIMAForecaster(season_length=12).min_train_length == 24
+    # options can still force a seasonal fit
+    forced = AutoARIMAForecaster(season_length=52, freq="MS", options={"season_length": 52})
+    assert forced.min_train_length == 104
+    AutoARIMAForecaster(
+        season_length=52, freq="MS", options={"season_length": 52}, min_length=10
+    ).fit(train)
+    assert stats_forecast.created[-1].models[0].season_length == 52
+
+
+def test_max_history_years_fits_on_recent_data_only(monkeypatch):
+    stats_forecast = _install(monkeypatch)
+    train = make_panel(2, 3 * 365 + 50, pandas_freq="D", internal=True)
+    train["is_filled"] = False
+    future = _future([make_uuid(0), make_uuid(1)], train["ds"].max(), 3, freq="D")
+    model = AutoARIMAForecaster(season_length=7, freq="D", max_history_years={"daily": 2})
+    model.fit(train).predict(future)
+    fitted = stats_forecast.created[-1].df
+    assert fitted.groupby("unique_id").size().tolist() == [730, 730]
+    # the most recent observations are kept, so the forecast starts from the same last date
+    assert (fitted.groupby("unique_id")["ds"].max() == train.groupby("unique_id")["ds"].max()).all()
+    # a frequency that is not listed uses the whole series
+    AutoThetaForecaster(season_length=7, freq="D", max_history_years={"monthly": 1}).fit(train)
+    assert len(stats_forecast.created[-1].df) == len(train)
+    AutoThetaForecaster(season_length=7, freq="D").fit(train)
+    assert len(stats_forecast.created[-1].df) == len(train)
+
+
+@pytest.mark.parametrize("bad", [3, {"hourly": 3}, {"daily": 0}, {"daily": "3"}, {"monthly": 1}])
+def test_bad_max_history_years_is_refused_at_start_up(bad):
+    # {"monthly": 1} is 12 months, fewer than the 24 a seasonal monthly ARIMA needs
+    with pytest.raises(ValueError, match="max_history_years"):
+        AutoARIMAForecaster(season_length=12, freq="MS", max_history_years=bad)
 
 
 def test_fallback_series_are_reported(monkeypatch, caplog):

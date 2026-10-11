@@ -346,13 +346,13 @@ def test_boosting_defaults_can_be_overridden(monkeypatch):
     model = LightGBMForecaster(season_length=12, regressor_params={"n_estimators": 7, "num_leaves": 4})
     params = model._make_regressor().params
     assert params["n_estimators"] == 7 and params["num_leaves"] == 4
-    assert params["learning_rate"] == 0.05 and params["n_jobs"] == 1 and params["verbosity"] == -1
+    assert params["learning_rate"] == 0.05 and params["n_jobs"] == -1 and params["verbosity"] == -1
     assert XGBoostForecaster(season_length=12)._make_regressor().params["tree_method"] == "hist"
 
 
 def test_real_sklearn_regressors_build():
     forest = RandomForestForecaster(season_length=12, regressor_params={"n_estimators": 5})._make_regressor()
-    assert forest.n_estimators == 5 and forest.n_jobs == 1 and forest.random_state == 0
+    assert forest.n_estimators == 5 and forest.n_jobs == -1 and forest.random_state == 0
     ridge = RidgeForecaster(season_length=12, regressor_params={"alpha": 3.0})._make_regressor()
     assert [name for name, _ in ridge.steps] == ["simpleimputer", "standardscaler", "ridge"]
     assert ridge.steps[-1][1].alpha == 3.0

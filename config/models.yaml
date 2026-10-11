@@ -13,13 +13,21 @@ seasonal_naive:
 drift:
   type: drift
 
-# StatsForecast (poetry install --extras stats). One model per series.
+# StatsForecast (poetry install --extras stats). One model per series, one core (n_jobs: 1;
+# -1 starts new processes on every fit on Windows, about 13 s each: only worth it for many long series).
+# max_history_years fits on only the most recent years of each series, per frequency (speed only;
+# decided 2026-10-11: ARIMA and Theta were far too slow on long daily series). Other models and
+# other frequencies use the whole series.
 auto_ets:
   type: auto_ets
 auto_arima:
   type: auto_arima
+  params:
+    max_history_years: {daily: 3}
 auto_theta:
   type: auto_theta
+  params:
+    max_history_years: {daily: 5}
 mstl:
   type: mstl          # needs a seasonal period, so it is skipped for yearly data
 

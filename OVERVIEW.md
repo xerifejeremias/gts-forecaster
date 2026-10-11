@@ -1,7 +1,7 @@
 # GTS Forecaster: General Time Series Forecasting
 
-**Status:** Planning (no code written yet)
-**Created:** 2026-10-05 | **Last updated:** 2026-10-05
+**Status:** Built; first real runs on the laptop done 2026-10-11 (all four frequencies run end to end)
+**Created:** 2026-10-05 | **Last updated:** 2026-10-11
 **Location:** Desktop\Remote Access Projects\GTS Forecaster
 
 ## Goal
@@ -242,9 +242,9 @@ Checked by reading each library's current source/docs (not by running them; the 
 - **Python 3.12–3.13** (`python = ">=3.12,<3.14"`): numpy ≥2.3, xgboost 3.4, scikit-learn 1.9, arviz 1.x and orbit-ml 1.1.5.1 need ≥3.12 (or ≥3.11). Poetry only uses releases whose requires-python covers the whole range, so a range starting at 3.10 would quietly lock old versions.
 - **pandas < 3**: statsforecast and mlforecast require it. Before lifting it, also change `contracts/input_schema.py` (`datetime64[ns]` and `str` dtypes behave differently in pandas 3).
 - **Orbit** is not in `all-models`: it compiles C++ (CmdStan + Stan models) when installed, so on Windows it needs MinGW/RTools. Prophet's Windows wheel includes CmdStan. If `from orbit.models import DLT, LGT` fails after install with an arviz error, pin `arviz<1`.
-- **torch** (for Chronos): PyPI has only CPU builds for Windows, so no CUDA download there.
+- **torch** (for Chronos): PyPI has only CPU builds for Windows, so no CUDA download there. torch 2.14 needs `VCRUNTIME140_THREADS.dll`, which comes with the Microsoft Visual C++ Redistributable 14.40 or newer (`winget install Microsoft.VCRedist.2015+.x64`); with an older one every Chronos model fails with `WinError 126 ... shm.dll`.
 
-Adapter fixes made from this check: Chronos-Bolt passes the context by position (the argument was renamed `context` → `inputs`; the old name crashed); Chronos-2 gets `freq=` (otherwise it infers the frequency per series and fails on gaps); AutoETS needs 7 observations (the library refuses fewer); MSTL's minimum history follows the longest period given in `options`; the adapters now log which series StatsForecast silently switched to the naive fallback (`fallback_ids_`); Prophet/Orbit stop with an error when they fail on every series (a setup problem such as missing CmdStan) instead of returning last values labelled as the model; MLForecast checks that each series has exactly the future steps 1..h (X_df rows are matched by position) and refuses date features that clash with other columns. Behaviour to know: in frozen-models mode MLForecast refits the target scaling (`local_standard`) on the new history, only the regressor stays frozen; AutoETS skips seasonal forms when the period is over 24 (weekly data with 52 becomes non-seasonal); Orbit LGT refuses negative values and its regressors are being deprecated (prefer DLT with known columns); `n_jobs > 1` for StatsForecast starts new processes on Windows (fine from the poetry commands).
+Adapter fixes made from this check: Chronos-Bolt passes the context by position (the argument was renamed `context` → `inputs`; the old name crashed); Chronos-2 gets `freq=` (otherwise it infers the frequency per series and fails on gaps); AutoETS needs 7 observations (the library refuses fewer); MSTL's minimum history follows the longest period given in `options`; the adapters now log which series StatsForecast silently switched to the naive fallback (`fallback_ids_`); Prophet/Orbit stop with an error when they fail on every series (a setup problem such as missing CmdStan) instead of returning last values labelled as the model; MLForecast checks that each series has exactly the future steps 1..h (X_df rows are matched by position) and refuses date features that clash with other columns. Behaviour to know: in frozen-models mode MLForecast refits the target scaling (`local_standard`) on the new history, only the regressor stays frozen; AutoETS skips seasonal forms when the period is over 24 (weekly data with 52 becomes non-seasonal); **AutoARIMA does the same since 2026-10-11** (decided by the user after the first laptop run: seasonal ARIMA with season 52 ran over 24 minutes on one weekly fold without finishing). Above `AutoARIMAForecaster.max_seasonal_period` (24) it fits a non-seasonal ARIMA and needs only 6 observations; `options: {season_length: 52}` forces the seasonal fit; Orbit LGT refuses negative values and its regressors are being deprecated (prefer DLT with known columns); `n_jobs > 1` for StatsForecast starts new processes on Windows (fine from the poetry commands).
 
 ### Folder layout
 
@@ -446,15 +446,47 @@ Notes:
 - Without the `stats` extra installed only the baselines run. Install it to get the StatsForecast models in the selection.
 - Built later the same day: run controls, frozen-models mode (`train`), the static HTML report (see "Forecast report"). Not yet built: a final dashboard technology (web app), accuracy views.
 
+## First real run on the laptop (2026-10-11)
+
+Windows 10, Python 3.13.0, Poetry 2.1.1 (run as `python -m poetry`, it is not on PATH), 4 logical / 2
+physical cores. The environment is in the project (`.venv`, Poetry `virtualenvs.in-project`).
+- `poetry lock` and `poetry install --extras "stats ml foundation"` worked first time (statsforecast 2.1.1,
+  mlforecast 1.1.0, lightgbm 4.7.0, xgboost 3.4.1, scikit-learn 1.9.1, chronos-forecasting 2.3.2,
+  torch 2.14.1+cpu, pandera 0.34.1, pandas 2.x). `poetry.lock` is now in the repo.
+- Tests: 572 of 575 passed at once. The 3 failures were tests that assumed the ML libraries were not
+  installed (they built the whole catalog); fixed by limiting them to the models they test. Full suite
+  ~3.5 min.
+- The real StatsForecast, MLForecast and Chronos APIs matched the adapters: no adapter change was needed.
+  Frozen-models forecasts equal the refit forecasts on the same data (monthly).
+- Chronos needed a newer Visual C++ Redistributable (see "Library versions").
+- Pipeline times (`run-pipeline`, synthetic data, all 18 fast models): yearly 1.8 min, monthly 1.8 min
+  (before Chronos worked), weekly 4.5 min, daily 23.5 min (backtest 18 min, forecast 5.5 min). Daily: AutoARIMA took 621 s of the 1021 s backtest model time (61%) but is in only 4 of 55 selections (ranked first in 2); Chronos-2 is in 28 (synthetic data, so only indicative).
+- **Decisions made with the user on 2026-10-11:**
+  - AutoARIMA fits a non-seasonal ARIMA when the season is over 24 (weekly): seasonal ARIMA with season
+    52 had not finished one fold after 24 minutes (see "Library versions").
+  - `max_history_years` (StatsForecast adapters, per frequency): AutoARIMA `{daily: 3}`, AutoTheta
+    `{daily: 5}` in models.yaml. All other models and frequencies use the whole series. Measured on long
+    daily series: Theta 34 s -> 2 s for 3 series; ARIMA 36 s -> 12 s. Still, ARIMA is the slowest daily
+    model (about 5 s per series per fit, ~60% of the daily backtest time).
+  - Threads: the MLForecast models use all cores by default (`num_threads: -1`, regressor `n_jobs: -1`;
+    random forest 64 s -> 26 s, LightGBM 5.5 s -> 0.8 s on daily). StatsForecast stays at `n_jobs: 1`:
+    on Windows every parallel fit starts new processes (~13 s each), which made monthly fits 7-25x slower,
+    gave nothing on daily, and made the test suite 17 min instead of 3.5. Revisit with many real series.
+    Ridge, Lasso and the baselines have no thread option; torch (Chronos) uses all physical cores itself.
+
 ## Next steps (updated 2026-10-11)
 
-From 2026-10-11 the work continues in a Claude Code session on the user's laptop (the earlier work was done in a cloud sandbox and copied to the laptop file by file). In order:
-
-1. **First real run** on the laptop: Python 3.12/3.13, `poetry install --extras "stats ml foundation"`, `poetry run pytest`, then `poetry run run-pipeline --frequency monthly` and the other frequencies (`scripts\first_run.bat` does the monthly part and logs to `first_run_log.txt`). Fix what fails: install/lock, the never-run pandera contract tests, real library APIs (see "Library versions"), run time on daily data. Optionally Prophet (`--extras prophet`, then `--no-fast-only`); Orbit needs a C++ toolchain on Windows.
-2. **Timing:** `poetry run benchmark --frequency <f> --series <real number>` for the real data size; drop or tune models that are too slow.
-3. **Real data input:** waiting for the user to describe the real file (column names, number of series, frequencies, how the data arrives); then add a column mapping to the config if the names differ.
-4. **Decisions for the user:** how often to backtest / train / forecast (then scheduling and deleting old `runs/` folders); confirm the platform's column names (`output_rename`); check the outlier threshold, minimum history, ensemble size and number of folds on real data with the Accuracy tab.
-5. **Independent code review** (the user wants it last, after everything else works).
+1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily
+   AutoARIMA is the model to watch (about 5 s per series per fit with 3 years); options are less history,
+   leaving it out for daily (needs a per-frequency model list), or parallel StatsForecast with many series.
+2. **Real data input:** waiting for the user to describe the real file (column names, number of series,
+   frequencies, how the data arrives); then add a column mapping to the config if the names differ.
+3. **Decisions for the user:** how often to backtest / train / forecast (then scheduling and deleting old
+   `runs/` folders); confirm the platform's column names (`output_rename`); check the outlier threshold,
+   minimum history, ensemble size and number of folds on real data with the Accuracy tab.
+4. Optional: Prophet (`--extras prophet`, then `--no-fast-only`); Orbit needs a C++ toolchain on Windows.
+5. **Independent code review** (the user wants it last). Known: `ruff check` reports older line-length and
+   import-order issues across src and tests.
 
 ## Note for other LLMs / collaborators
 

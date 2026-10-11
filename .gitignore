@@ -13,3 +13,4 @@ benchmarks/
 *.egg-info/
 dist/
 .claude/settings.local.json
+registry/

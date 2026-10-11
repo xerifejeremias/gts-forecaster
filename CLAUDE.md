@@ -6,15 +6,10 @@ Read `OVERVIEW.md` first: it is the source of truth for the design, every decisi
 (with dates), the build status and what is still open. `README.md` has the user-facing commands.
 
 ## Where things stand (2026-10-11)
-- Everything was written in a cloud sandbox without the real model libraries and without pandera.
-  It has NOT been run on this laptop yet. The first job is a real run:
-  `scripts\first_run.bat` (logs to `first_run_log.txt`), or step by step:
-  `poetry env use <python 3.12 or 3.13>`, `poetry install --extras "stats ml foundation"`,
-  `poetry run pytest -q`, `poetry run validate-input --frequency monthly`,
-  `poetry run run-pipeline --frequency monthly`, `poetry run benchmark --frequency monthly --series 1000`.
-- Expect to fix: poetry lock / install problems, small mismatches with the real library APIs
-  (StatsForecast, MLForecast, Chronos, Prophet, Orbit; see OVERVIEW "Library versions"), the pandera
-  input contract tests (never run), and run time on daily data.
+- First real runs on the laptop are done: install, tests and `run-pipeline` work for all four
+  frequencies (details and the decisions made in OVERVIEW "First real run on the laptop").
+- Poetry is not on PATH here: use `python -m poetry ...` (e.g. `python -m poetry run pytest -q`).
+  The venv is in the project (`.venv`). Set `PYTHONUTF8=1` if output has encoding errors.
 - Python 3.12 or 3.13 is required (pyproject). pandas must stay < 3.
 - Leftover to delete by hand: `data/generate_synthetic_data.py` (the real script is in `scripts/`).
 

@@ -19,12 +19,14 @@ import numpy as np
 import pandas as pd
 
 from gts_forecaster.columns import DATE, ID, TARGET
+from gts_forecaster.features.calendar_features import frequency_kind
 from gts_forecaster.models.alignment import align_forecast
 from gts_forecaster.models.base import HORIZON_STEP, BaseForecaster
 
 logger = logging.getLogger(__name__)
 
 _ALIAS = "gts_model"
+_PERIODS_PER_YEAR = {"yearly": 1, "monthly": 12, "weekly": 52, "daily": 365}
 
 
 def _import_statsforecast():
@@ -46,11 +48,17 @@ class StatsForecastAdapter(BaseForecaster):
     freq           pandas frequency alias (filled in from the frequency profile)
     options        extra keyword arguments for the StatsForecast model, for example
                    {"model": "ZZZ"} for AutoETS; they override the defaults
-    n_jobs         processes StatsForecast may use (1 = no multiprocessing, -1 or None = all cores;
-                   on Windows more than 1 starts new processes, which works from the poetry commands)
+    n_jobs         processes StatsForecast may use (default 1 = no multiprocessing, -1 = all cores).
+                   On Windows more than 1 starts new processes for every fit, about 13 s each on the
+                   project laptop, which only pays off with many long series (measured 2026-10-11)
     fallback       if StatsForecast fails on a series, use the naive forecast for it instead of
                    stopping the whole run
     min_length     override of the fewest observations a series needs
+    max_history_years
+                   fit on only the most recent years of each series, per frequency, for example
+                   {"daily": 3}; a frequency not listed uses the whole series (default: all).
+                   Only a speed measure for slow models on long series; forecasts start from the
+                   last observation either way.
     """
 
     scope: ClassVar[str] = "local"
@@ -68,6 +76,7 @@ class StatsForecastAdapter(BaseForecaster):
         n_jobs: int = 1,
         fallback: bool = True,
         min_length: int | None = None,
+        max_history_years: dict[str, float] | None = None,
     ):
         self.season_length = season_length
         self.freq = freq
@@ -75,6 +84,36 @@ class StatsForecastAdapter(BaseForecaster):
         self.n_jobs = n_jobs
         self.fallback = fallback
         self.min_length = min_length
+        self.max_history_years = max_history_years
+        self._max_history()  # fail at start-up on a bad setting, not in the middle of a run
+
+    def _max_history(self) -> int | None:
+        """Most recent observations to fit on for this frequency, or None for all."""
+        if not self.max_history_years:
+            return None
+        if not isinstance(self.max_history_years, dict):
+            raise ValueError(
+                f"max_history_years must map a frequency to years, e.g. {{'daily': 3}}, "
+                f"got {self.max_history_years!r}"
+            )
+        unknown = sorted(set(self.max_history_years) - set(_PERIODS_PER_YEAR))
+        if unknown:
+            raise ValueError(
+                f"max_history_years: unknown frequency {unknown}; use {list(_PERIODS_PER_YEAR)}"
+            )
+        for value in self.max_history_years.values():
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+                raise ValueError(f"max_history_years must be positive numbers, got {value!r}")
+        years = self.max_history_years.get(frequency_kind(self.freq))
+        if years is None:
+            return None
+        periods = int(round(years * _PERIODS_PER_YEAR[frequency_kind(self.freq)]))
+        if periods < self.min_train_length:
+            raise ValueError(
+                f"max_history_years {years} gives {periods} observations, fewer than the "
+                f"{self.min_train_length} this model needs"
+            )
+        return periods
 
     @property
     def min_train_length(self) -> int:
@@ -98,7 +137,13 @@ class StatsForecastAdapter(BaseForecaster):
         self.sf_ = stats_forecast(
             models=[model], freq=self.freq, n_jobs=n_jobs, fallback_model=fallback
         )
-        self.sf_.fit(train[[ID, DATE, TARGET]].reset_index(drop=True))
+        data = train[[ID, DATE, TARGET]]
+        cap = self._max_history()
+        if cap is not None:
+            data = data.groupby(ID, sort=False).tail(cap)
+            logger.info("%s: fitting on the last %d observations of each series",
+                        type(self).__name__, cap)
+        self.sf_.fit(data.reset_index(drop=True))
         self.fallback_ids_ = self._fallback_series()
         if self.fallback_ids_:
             logger.warning(
@@ -142,10 +187,36 @@ class AutoETSForecaster(StatsForecastAdapter):
 
 
 class AutoARIMAForecaster(StatsForecastAdapter):
-    """ARIMA with automatic order selection per series."""
+    """ARIMA with automatic order selection per series.
+
+    Seasonal ARIMA is far too slow for long seasons (weekly data, 52: tens of minutes per fold),
+    so a season longer than `max_seasonal_period` gets a non-seasonal ARIMA, like AutoETS does
+    above 24. MSTL, Theta, the MLForecast models and Chronos still cover the seasonality. To
+    force a seasonal fit anyway, pass {"season_length": 52} in `options`."""
 
     _model_name = "AutoARIMA"
     _min_obs = 6
+    max_seasonal_period: ClassVar[int] = 24
+
+    def _effective_season(self) -> int:
+        m = int(self.season_length)
+        return 1 if m > self.max_seasonal_period else m
+
+    @property
+    def min_train_length(self) -> int:
+        if self.min_length is not None or "season_length" in (self.options or {}):
+            return super().min_train_length
+        m = self._effective_season()
+        return max(self._min_obs, 2 * m if m > 1 else 0)
+
+    def _model_kwargs(self) -> dict[str, Any]:
+        m = self._effective_season()
+        if m != int(self.season_length) and "season_length" not in (self.options or {}):
+            logger.info(
+                "AutoARIMA: season length %d is over %d, fitting a non-seasonal ARIMA",
+                self.season_length, self.max_seasonal_period,
+            )
+        return {"season_length": m, "alias": _ALIAS, **(self.options or {})}
 
 
 class AutoThetaForecaster(StatsForecastAdapter):

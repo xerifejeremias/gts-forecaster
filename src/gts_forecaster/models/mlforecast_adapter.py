@@ -73,7 +73,7 @@ class MLForecastAdapter(BaseForecaster):
     known_columns      explanatory columns whose future values are known (filled in from
                        `known_future_columns`)
     feature_builder    calendar and static features (set by `features:` in models.yaml)
-    num_threads        threads MLForecast may use to build features
+    num_threads        threads MLForecast may use to build features (default -1 = all cores)
     min_length         override of the fewest observations a series needs
     """
 
@@ -94,7 +94,7 @@ class MLForecastAdapter(BaseForecaster):
         regressor_params: dict[str, Any] | None = None,
         known_columns: Sequence[str] = (),
         feature_builder: FeatureBuilder | None = None,
-        num_threads: int = 1,
+        num_threads: int = -1,
         min_length: int | None = None,
     ):
         self.season_length = season_length
@@ -292,7 +292,7 @@ class LightGBMForecaster(MLForecastAdapter):
     requires_packages: ClassVar[tuple[str, ...]] = ("mlforecast", "lightgbm")
     _default_params: ClassVar[dict[str, Any]] = {
         "n_estimators": 200, "learning_rate": 0.05, "num_leaves": 31, "verbosity": -1,
-        "n_jobs": 1, "random_state": 0,
+        "n_jobs": -1, "random_state": 0,
     }
 
     def _make_regressor(self):
@@ -307,7 +307,7 @@ class XGBoostForecaster(MLForecastAdapter):
     requires_packages: ClassVar[tuple[str, ...]] = ("mlforecast", "xgboost")
     _default_params: ClassVar[dict[str, Any]] = {
         "n_estimators": 200, "learning_rate": 0.05, "max_depth": 6, "tree_method": "hist",
-        "n_jobs": 1, "random_state": 0,
+        "n_jobs": -1, "random_state": 0,
     }
 
     def _make_regressor(self):
@@ -321,7 +321,7 @@ class RandomForestForecaster(MLForecastAdapter):
 
     requires_packages: ClassVar[tuple[str, ...]] = ("mlforecast", "sklearn")
     _default_params: ClassVar[dict[str, Any]] = {
-        "n_estimators": 200, "min_samples_leaf": 3, "max_features": 0.5, "n_jobs": 1,
+        "n_estimators": 200, "min_samples_leaf": 3, "max_features": 0.5, "n_jobs": -1,
         "random_state": 0,
     }
 

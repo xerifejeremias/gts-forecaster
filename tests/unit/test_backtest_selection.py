@@ -229,7 +229,8 @@ def test_pipeline_writes_registry_files(tmp_path):
     assert out.scores_path.is_file()
     # the selection names the backtest file it came from (read by the report's accuracy tab)
     assert json.loads(out.selection_path.read_text())["meta"]["backtest_forecasts_file"] == out.forecasts_path.name
-    doc = read_selection(out.selection_path, _models(), ["linear", "const", "short"])
+    # the pipeline uses every model whose library is installed, so check against the whole catalog
+    doc = read_selection(out.selection_path, load_model_specs(), ["linear", "const", "short"])
     assert doc["meta"]["horizon"] == 3 and doc["meta"]["metric"] == "mae"
     assert "uuid" in pd.read_csv(out.scores_path).columns
 
