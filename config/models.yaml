@@ -2,6 +2,7 @@
 #   type      which model class to use (see MODEL_TYPES in models/catalog.py)
 #   params    optional parameters for that class
 #   features  optional: name of a feature set in config/features.yaml (models that use feature columns)
+#   skip_frequencies  optional: frequencies the model is left out for, e.g. [daily]
 # season_length and freq are filled in from the frequency profile for models that take them.
 # A model whose library is not installed is skipped with a warning (the extra is named in it).
 
@@ -18,12 +19,15 @@ drift:
 # max_history_years fits on only the most recent years of each series, per frequency (speed only;
 # decided 2026-10-11: ARIMA and Theta were far too slow on long daily series). Other models and
 # other frequencies use the whole series.
+# skip_frequencies leaves a model out for those frequencies (any model can have it).
 auto_ets:
   type: auto_ets
 auto_arima:
   type: auto_arima
-  params:
-    max_history_years: {daily: 3}
+  # decided 2026-10-11: on daily data ARIMA took 61% of the backtest time and was chosen for
+  # 2 of 55 series. To bring it back for daily, remove this line and add under params
+  # max_history_years: {daily: 3}
+  skip_frequencies: [daily]
 auto_theta:
   type: auto_theta
   params:

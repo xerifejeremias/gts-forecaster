@@ -88,7 +88,7 @@ def load_model_specs(
     for name, entry in raw.items():
         if not isinstance(entry, dict) or "type" not in entry:
             raise ConfigError(f"model '{name}' in {path} needs a 'type'")
-        unknown = set(entry) - {"type", "params", "features", "skip_without_static"}
+        unknown = set(entry) - {"type", "params", "features", "skip_without_static", "skip_frequencies"}
         if unknown:
             raise ConfigError(f"model '{name}': unknown key(s) {sorted(unknown)}")
         if entry["type"] not in MODEL_TYPES:
@@ -104,8 +104,15 @@ def load_model_specs(
         skip = entry.get("skip_without_static", False)
         if not isinstance(skip, bool):
             raise ConfigError(f"model '{name}': skip_without_static must be true or false")
+        skip_frequencies = entry.get("skip_frequencies") or []
+        if not isinstance(skip_frequencies, list) or set(skip_frequencies) - set(FREQUENCIES):
+            raise ConfigError(
+                f"model '{name}': skip_frequencies must be a list of {list(FREQUENCIES)}, "
+                f"got {skip_frequencies!r}"
+            )
         specs[str(name)] = {
             "type": entry["type"], "params": params, "features": features, "skip_without_static": skip,
+            "skip_frequencies": list(skip_frequencies),
         }
     if types is not None:
         wanted = set(types)
@@ -175,6 +182,26 @@ def build_models(
 
 
 REFERENCE_MODEL = "naive"  # the benchmark every other model is compared with
+FREQUENCIES = ("yearly", "monthly", "weekly", "daily")
+
+
+def skip_for_frequency(
+    specs: dict[str, dict[str, Any]], frequency: str, protected: Iterable[str]
+) -> dict[str, dict[str, Any]]:
+    """Leave out the models whose `skip_frequencies` (models.yaml) names this frequency.
+
+    The `protected` models (the reference model and the short-series models) cannot be skipped:
+    the selection needs them."""
+    skipped = [name for name, spec in specs.items() if frequency in spec.get("skip_frequencies", ())]
+    clash = sorted(set(skipped) & set(protected))
+    if clash:
+        raise ConfigError(
+            f"cannot skip {clash} for {frequency} data: the selection needs them "
+            "(naive and the short_series_models)"
+        )
+    for name in skipped:
+        logger.info("model '%s' skipped: skip_frequencies includes %s", name, frequency)
+    return {name: spec for name, spec in specs.items() if name not in skipped}
 
 
 def filter_specs(
@@ -212,6 +239,7 @@ def build_models_from_config(
     feature sets that use identifier features. `cfg.models` / `cfg.exclude_models` restrict the
     candidates unless `apply_model_filter` is false."""
     specs = load_model_specs(config_dir)
+    specs = skip_for_frequency(specs, cfg.frequency, {REFERENCE_MODEL, *cfg.short_series_models})
     if apply_model_filter and (cfg.models or cfg.exclude_models):
         specs = filter_specs(
             specs, cfg.models, cfg.exclude_models, {REFERENCE_MODEL, *cfg.short_series_models}

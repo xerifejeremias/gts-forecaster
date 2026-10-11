@@ -460,7 +460,7 @@ physical cores. The environment is in the project (`.venv`, Poetry `virtualenvs.
   Frozen-models forecasts equal the refit forecasts on the same data (monthly).
 - Chronos needed a newer Visual C++ Redistributable (see "Library versions").
 - Pipeline times (`run-pipeline`, synthetic data, all 18 fast models): yearly 1.8 min, monthly 1.8 min
-  (before Chronos worked), weekly 4.5 min, daily 23.5 min (backtest 18 min, forecast 5.5 min). Daily: AutoARIMA took 621 s of the 1021 s backtest model time (61%) but is in only 4 of 55 selections (ranked first in 2); Chronos-2 is in 28 (synthetic data, so only indicative).
+  (before Chronos worked), weekly 4.5 min, daily 23.5 min (backtest 18 min, forecast 5.5 min). Daily: AutoARIMA took 621 s of the 1021 s backtest model time (61%) but is in only 4 of 55 selections (ranked first in 2); Chronos-2 is in 28 (synthetic data, so only indicative). Without AutoARIMA (skip_frequencies, below) daily takes 9.1 min (backtest 6.8, forecast 2.2) with the same hold-out accuracy (WAPE 22.8% either way).
 - **Decisions made with the user on 2026-10-11:**
   - AutoARIMA fits a non-seasonal ARIMA when the season is over 24 (weekly): seasonal ARIMA with season
     52 had not finished one fold after 24 minutes (see "Library versions").
@@ -473,6 +473,33 @@ physical cores. The environment is in the project (`.venv`, Poetry `virtualenvs.
     on Windows every parallel fit starts new processes (~13 s each), which made monthly fits 7-25x slower,
     gave nothing on daily, and made the test suite 17 min instead of 3.5. Revisit with many real series.
     Ridge, Lasso and the baselines have no thread option; torch (Chronos) uses all physical cores itself.
+
+### Fair accuracy check (2026-10-11, `scripts/holdout_check.py`)
+
+The models are chosen per series on the earlier backtest folds only (same rules: mean MAE, top 3,
+equal weights) and scored on the last fold, which the choice never saw. WAPE on that fold:
+
+| Frequency | Series | Pipeline | Best single model | Naive | Seasonal naive | Beats naive (series) |
+|---|---|---|---|---|---|---|
+| yearly (h=3, before Chronos worked) | 40 | 17.5% | 19.3% | 21.9% | n/a | 60% |
+| monthly (h=18) | 15 | 12.1% | 12.2% | 17.5% | 16.5% | 80% |
+| weekly (h=12) | 40 | 24.8% | 25.6% | 31.2% | 38.4% | 65% |
+| daily (h=14, with ARIMA) | 45 | 22.8% | 23.2% | 29.1% | 29.5% | 89% |
+
+The pipeline beats naive at every frequency, and the top-3 ensemble beats the single best model.
+On the high-predictability synthetic series the error is 2-10%, on the low ones 25-60% (mostly noise
+by design). Only 15 monthly series could be checked: with h=18 and 3 folds most monthly series
+have fewer than two folds.
+
+**Daily AutoARIMA left out (decided by the user 2026-10-11):** new models.yaml key
+`skip_frequencies` (any model; `catalog.skip_for_frequency`, applied in `build_models_from_config`;
+naive and the short-series models cannot be skipped). `auto_arima` has `skip_frequencies: [daily]`;
+its `max_history_years: {daily: 3}` was removed with it (the comment in models.yaml says how to
+bring it back). After skipping or removing a model, run a new backtest for that frequency: `forecast`
+and `train` refuse a selection.json that names a model which is no longer a candidate. The backtest
+itself accepts the old file (`registry.read_existing_selection`, changed 2026-10-11 after the first
+daily rerun failed on it): unlocked entries naming such a model are dropped with a warning (the new
+backtest replaces them); a locked entry naming one is still an error.
 
 ## Next steps (updated 2026-10-11)
 

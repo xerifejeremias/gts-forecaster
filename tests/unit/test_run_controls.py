@@ -221,3 +221,52 @@ def test_limit_series_is_deterministic_and_handles_one():
 def test_limit_series_rejects_zero():
     with pytest.raises(ValueError):
         limit_series(_prepared((N, N)), 0)
+
+
+# ---- skip_frequencies (models.yaml) ----------------------------------------------------------
+
+
+def _models_dir(tmp_path, models_yaml):
+    for name in ("default.yaml", "frequency_profiles.yaml", "features.yaml"):
+        (tmp_path / name).write_text(open(f"config/{name}", encoding="utf-8").read(), encoding="utf-8")
+    (tmp_path / "models.yaml").write_text(models_yaml, encoding="utf-8")
+    return tmp_path
+
+
+_SKIP_DRIFT_DAILY = (
+    "naive:\n  type: naive\nseasonal_naive:\n  type: seasonal_naive\n"
+    "drift:\n  type: drift\n  skip_frequencies: [daily]\n"
+)
+
+
+def test_skip_frequencies_leaves_the_model_out_for_that_frequency_only(tmp_path):
+    from gts_forecaster.models.catalog import build_models_from_config
+
+    directory = _models_dir(tmp_path, _SKIP_DRIFT_DAILY)
+    overrides = {"short_series_models": ["naive", "seasonal_naive"]}
+    daily = load_config({"frequency": "daily", **overrides}, config_dir=directory)
+    monthly = load_config({"frequency": "monthly", **overrides}, config_dir=directory)
+    assert "drift" not in build_models_from_config(daily, directory)
+    assert "drift" in build_models_from_config(monthly, directory)
+
+
+def test_skip_frequencies_cannot_drop_models_the_selection_needs(tmp_path):
+    from gts_forecaster.models.catalog import build_models_from_config
+
+    directory = _models_dir(tmp_path, _SKIP_DRIFT_DAILY)
+    cfg = load_config({"frequency": "daily"}, config_dir=directory)  # drift is a short-series model
+    with pytest.raises(ConfigError, match="cannot skip"):
+        build_models_from_config(cfg, directory)
+
+
+@pytest.mark.parametrize("value", ["daily", "[hourly]", "[daily, often]"])
+def test_skip_frequencies_must_list_known_frequencies(tmp_path, value):
+    (tmp_path / "models.yaml").write_text(f"a:\n  type: naive\n  skip_frequencies: {value}\n")
+    with pytest.raises(ConfigError, match="skip_frequencies"):
+        load_model_specs(tmp_path)
+
+
+def test_shipped_catalog_skips_arima_for_daily_only():
+    specs = load_model_specs()
+    assert specs["auto_arima"]["skip_frequencies"] == ["daily"]
+    assert all(not s["skip_frequencies"] for n, s in specs.items() if n != "auto_arima")

@@ -182,6 +182,25 @@ def test_unlocked_entries_are_replaced_and_missing_file_is_fine():
     assert merge_locked(new, None)[1] == []
 
 
+def test_existing_selection_with_a_model_no_longer_offered(tmp_path, caplog):
+    # e.g. a model skipped for this frequency after the last backtest
+    from gts_forecaster.registry import read_existing_selection
+
+    path = tmp_path / "selection.json"
+    doc = _doc()
+    doc["series"]["const"]["models"] = [{"name": "auto_arima", "weight": 1.0}]
+    path.write_text(json.dumps(doc))
+    # unlocked: dropped with a warning, the new backtest replaces it
+    existing = read_existing_selection(path, _models())
+    assert "const" not in existing["series"] and "linear" in existing["series"]
+    assert "no longer a candidate" in caplog.text
+    # locked: the manual choice cannot be kept, so the run stops
+    doc["series"]["const"]["locked"] = True
+    path.write_text(json.dumps(doc))
+    with pytest.raises(DataContractError, match="auto_arima"):
+        read_existing_selection(path, _models())
+
+
 def test_write_and_read_roundtrip(tmp_path):
     path = tmp_path / "sub" / "selection.json"
     write_json_atomic(path, _doc())

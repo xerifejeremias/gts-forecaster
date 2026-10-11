@@ -8,6 +8,7 @@ leaves a half-written selection behind.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime
 from collections.abc import Collection, Mapping
@@ -19,6 +20,8 @@ import pandas as pd
 from gts_forecaster.contracts.errors import DataContractError
 from gts_forecaster.contracts.selection_schema import validate_selection
 from gts_forecaster.selection import Selection
+
+logger = logging.getLogger(__name__)
 
 # Two selections come out of one backtest (decided 2026-10-06):
 #   selection_fast.json  chosen among the fast models only; used when fast_only is on (default)
@@ -111,8 +114,36 @@ def read_selection(
 
 
 def read_existing_selection(path: Path, valid_models: Collection[str]) -> dict[str, Any] | None:
-    """The current selection file, or None if there is none yet. An invalid file is an error."""
-    return read_selection(path, valid_models) if Path(path).is_file() else None
+    """The current selection file, read by the backtest to keep its locked entries, or None if
+    there is none yet. An invalid file is an error, with one exception: an unlocked entry that
+    names a model which is no longer a candidate (removed from models.yaml, or skipped for this
+    frequency) is dropped with a warning, because the new backtest replaces it anyway. A locked
+    entry with such a model is still an error: that manual choice cannot be kept."""
+    path = Path(path)
+    if not path.is_file():
+        return None
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise DataContractError(f"Could not read selection file {path}: {exc}") from exc
+    series = doc.get("series") if isinstance(doc, dict) else None
+    if isinstance(series, dict):
+        valid = set(valid_models)
+        stale = [
+            uid for uid, entry in series.items()
+            if isinstance(entry, Mapping) and entry.get("locked") is not True
+            and isinstance(entry.get("models"), list)
+            and any(isinstance(m, Mapping) and m.get("name") not in valid for m in entry["models"])
+        ]
+        if stale:
+            logger.warning(
+                "%s: %d unlocked entr%s name a model that is no longer a candidate; the new "
+                "backtest replaces them (e.g. %s)",
+                path.name, len(stale), "y" if len(stale) == 1 else "ies", stale[:3],
+            )
+            doc = {**doc, "series": {u: e for u, e in series.items() if u not in stale}}
+    validate_selection(doc, valid_models)
+    return doc
 
 
 BACKTEST_FORECASTS_PREFIX = "backtest_forecasts"
