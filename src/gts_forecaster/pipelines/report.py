@@ -22,7 +22,7 @@ import pandas as pd
 from gts_forecaster.config import ConfigError, load_config
 from gts_forecaster.contracts.errors import DataContractError
 from gts_forecaster.forecast_checks import CHECKS_FILE
-from gts_forecaster.io.loaders import load_input_csv
+from gts_forecaster.io.loaders import load_input
 from gts_forecaster.registry import registry_path, selection_file
 from gts_forecaster.report.accuracy import backtest_rows, encode, live_rows, newest_backtest_file
 from gts_forecaster.report.data import build_report_data
@@ -58,7 +58,7 @@ def run_report_pipeline(
             by_model = pd.read_csv(by_model_path, dtype={"uuid": str}, parse_dates=["ds"])
         else:
             logger.warning("no %s: the report will have no per-model lines", by_model_path)
-    history = load_input_csv(config.data_path, config.static_columns)
+    history = load_input(config)
     checks = None
     checks_path = folder / CHECKS_FILE
     if checks_path.is_file():

@@ -25,8 +25,11 @@ UUID_REGEX = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9
 _MAX_FAILURES_SHOWN = 5
 
 
+ID_FORMATS = ("any", "uuid")
+
+
 def build_input_schema(
-    explanatory_columns: Sequence[str], static_columns: Sequence[str] = ()
+    explanatory_columns: Sequence[str], static_columns: Sequence[str] = (), id_format: str = "any"
 ) -> pa.DataFrameSchema:
     """Schema for the loaded input: exactly these columns, with these types."""
     no_inf = pa.Check(
@@ -40,7 +43,11 @@ def build_input_schema(
         return pa.Column(float, checks=no_inf, nullable=True, coerce=True)
 
     columns: dict[str, pa.Column] = {
-        "uuid": pa.Column(str, checks=pa.Check.str_matches(UUID_REGEX), nullable=False),
+        "uuid": pa.Column(
+            str, nullable=False,
+            # any non-empty text by default; id_format "uuid" also requires the UUID format
+            checks=pa.Check.str_matches(UUID_REGEX) if id_format == "uuid" else pa.Check.str_length(min_value=1),
+        ),
         "date": pa.Column("datetime64[ns]", nullable=False),
         "target": numeric(),
     }
@@ -83,13 +90,14 @@ def validate_input_structure(
     pandas_freq: str,
     min_series_length: int,
     static_columns: Sequence[str] = (),
+    id_format: str = "any",
 ) -> pd.DataFrame:
     """Check the loaded input against the contract. Returns the validated frame.
 
     Raises DataContractError on the first group of violations.
     """
     check_not_empty(df)
-    schema = build_input_schema(explanatory_columns, static_columns)
+    schema = build_input_schema(explanatory_columns, static_columns, id_format)
     try:
         validated = schema.validate(df, lazy=True)
     except (pa.errors.SchemaErrors, pa.errors.SchemaError) as exc:

@@ -1,55 +1,109 @@
 """Fair accuracy check of the saved backtests. Run from the project root:
 
-    python -m poetry run python scripts/holdout_check.py
+    python -m poetry run python scripts/holdout_check.py [yearly monthly weekly daily]
 
-For every frequency, the models are chosen per series on the earlier backtest folds only (same
-rules as selection.py: mean MAE, top 3, equal weights) and scored on the last fold, which the
-choice never saw. Compared with naive and seasonal naive, overall and per predictability tier.
-Reads registry/<frequency>/selection_fast.json, the backtest forecasts file it names, and
-data/<frequency>/series_metadata.csv (tiers of the synthetic data).
+For every frequency it reads the backtest file named in registry/<frequency>/selection_fast.json and
+replays the pipeline's own model choice (`selection.select_models`) out of sample: for each test fold
+k >= 2 the models are chosen on folds < k only (expanding window) and scored on fold k, which the choice
+never saw. Both selection rules are compared ("per_series" and "blend", see selection.py), with naive as
+the reference. Slow models (Prophet, Orbit) are left out, like the default fast selection.
+The scores use the selection's metric (MASE falls back to MAE: the training history is not in the file).
 """
+
 import json
-import numpy as np, pandas as pd
+import sys
+from collections import defaultdict
+from types import SimpleNamespace
 
-TOP_N = 3
-def wape(a, f): return np.abs(f - a).sum() / np.abs(a).sum() * 100
+import numpy as np
+import pandas as pd
 
-for freq in ["yearly", "monthly", "weekly", "daily"]:
-    meta = json.load(open(f"registry/{freq}/selection_fast.json"))["meta"]
-    bt = pd.read_csv(f"backtesting/{freq}/{meta['backtest_forecasts_file']}", dtype={"uuid": str})
-    bt = bt[~bt["is_filled"].astype(bool)].dropna(subset=["forecast"])
-    tiers = pd.read_csv(f"data/{freq}/series_metadata.csv", dtype={"uuid": str}).set_index("uuid")["predictability"]
-    last = bt["fold"].max()
-    err = (bt.assign(ae=(bt.forecast - bt.actual).abs())
-             .groupby(["uuid", "model", "fold"])["ae"].mean().unstack("fold"))
-    order = list(dict.fromkeys(bt["model"]))  # models.yaml order, for ties
-    rows, test = [], bt[bt.fold == last]
-    for uid, e in err.groupby(level="uuid"):
-        e = e.droplevel("uuid")
-        if "naive" not in e.index or pd.isna(e.loc["naive", last]):
-            continue
-        early = [f for f in e.columns if f != last and pd.notna(e.loc["naive", f])]
-        if not early:
-            continue  # only one fold: cannot choose without looking at the test fold
-        cand = e[e[early].notna().all(axis=1) & e[last].notna()]
-        mean = cand[early].mean(axis=1).to_frame("s")
-        mean["o"] = [order.index(m) for m in mean.index]
-        chosen = mean.sort_values(["s", "o"]).index[:TOP_N].tolist()
-        t = test[test.uuid == uid].pivot_table(index="ds", columns="model", values="forecast")
-        a = test[(test.uuid == uid) & (test.model == "naive")].set_index("ds")["actual"].reindex(t.index)
-        rows.append(pd.DataFrame({"uuid": uid, "actual": a, "pipeline": t[chosen].mean(axis=1),
-                                  "best1": t[chosen[0]], "naive": t["naive"],
-                                  "snaive": t.get("seasonal_naive", pd.Series(np.nan, index=t.index))}))
-    r = pd.concat(rows)
-    per = r.groupby("uuid").apply(lambda g: pd.Series({
-        "p_mae": (g.pipeline - g.actual).abs().mean(), "n_mae": (g.naive - g.actual).abs().mean()}), include_groups=False)
-    per["tier"] = tiers.reindex(per.index).values
-    print(f"\n== {freq}: {per.shape[0]} series scored on the last fold (cutoff never seen by the choice)")
-    print(f"   WAPE  pipeline {wape(r.actual, r.pipeline):5.1f}%   best single {wape(r.actual, r.best1):5.1f}%   "
-          f"naive {wape(r.actual, r.naive):5.1f}%   seasonal naive "
-          + (f"{wape(r.dropna(subset=['snaive']).actual, r.dropna(subset=['snaive']).snaive):5.1f}%" if r.snaive.notna().any() else "  n/a"))
-    print(f"   pipeline beats naive on {(per.p_mae < per.n_mae).mean()*100:.0f}% of series")
-    for tier, g in per.groupby("tier"):
-        rr = r[r.uuid.isin(g.index)]
-        print(f"     {tier:6s} {len(g):3d} series: WAPE pipeline {wape(rr.actual, rr.pipeline):5.1f}% vs naive "
-              f"{wape(rr.actual, rr.naive):5.1f}%, beats naive on {(g.p_mae < g.n_mae).mean()*100:3.0f}%")
+from gts_forecaster.evaluation.metrics import get_metric
+from gts_forecaster.models.catalog import load_model_specs
+from gts_forecaster.selection import REFERENCE_MODEL, select_models
+
+RULES = ("per_series", "blend")
+SLOW = ("prophet", "orbit")
+
+
+def wape(a, f):
+    return np.abs(f - a).sum() / np.abs(a).sum() * 100
+
+
+def internal(bt):
+    """The backtest file in the internal column names select_models expects."""
+    return bt.rename(columns={"uuid": "unique_id", "ds": "ds", "actual": "y", "forecast": "yhat"})
+
+
+def scores_table(pred, metric_fn):
+    rows = []
+    scored = pred[~pred["is_filled"]]
+    for (uid, fold, model), g in scored.groupby(["unique_id", "fold", "model"], sort=False):
+        value = metric_fn(g["y"].to_numpy(float), g["yhat"].to_numpy(float), None, 1)
+        rows.append({"unique_id": uid, "fold": fold, "model": model, "score": value, "n_points": len(g)})
+    return pd.DataFrame(rows)
+
+
+def check(freq):
+    selection_meta = json.load(open(f"registry/{freq}/selection_fast.json"))["meta"]
+    metric = selection_meta.get("metric", "mae")
+    if metric == "mase":
+        metric = "mae"
+    top_n = int(selection_meta.get("top_n", 3))
+    share = float(selection_meta.get("blend_share", 0.5))
+    bt = pd.read_csv(f"backtesting/{freq}/{selection_meta['backtest_forecasts_file']}", dtype={"uuid": str})
+    bt = bt[~bt["model"].str.startswith(SLOW)].dropna(subset=["forecast"])
+    bt["is_filled"] = bt["is_filled"].astype(str).str.lower().isin(["true", "1"])
+    pred = internal(bt)
+    pred["ds"] = pd.to_datetime(pred["ds"])
+    catalog = [m for m in load_model_specs() if m in set(pred["model"])]
+    models = {m: SimpleNamespace(min_train_length=1) for m in catalog}  # order = models.yaml order
+    scores = scores_table(pred, get_metric(metric))
+    folds = sorted(pred["fold"].unique())
+    test_rows = {rule: [] for rule in RULES}
+    per_series = []
+    for k in folds[1:]:
+        choose = [f for f in folds if f < k]
+        result = SimpleNamespace(
+            metric=metric, season_length=1, scores=scores[scores["fold"].isin(choose)],
+            predictions=pred[pred["fold"].isin(choose)], train_y=defaultdict(lambda: None),
+            series_lengths=pd.Series(10_000, index=pred["unique_id"].unique()),
+        )
+        test = pred[(pred["fold"] == k) & ~pred["is_filled"]]
+        wide = test.pivot_table(index=["unique_id", "ds"], columns="model", values="yhat")
+        actual = test.drop_duplicates(["unique_id", "ds"]).set_index(["unique_id", "ds"])["y"]
+        judged = set(scores.loc[(scores["model"] == REFERENCE_MODEL) & scores["fold"].isin(choose), "unique_id"])
+        judged &= set(test.loc[test["model"] == REFERENCE_MODEL, "unique_id"])
+        chosen = {rule: select_models(result, models, top_n=top_n, rule=rule, blend_share=share).series
+                  for rule in RULES}
+        for uid in sorted(judged):
+            a = actual.loc[uid]
+            maes, ok = {}, True
+            for rule in RULES:
+                members = chosen[rule][uid].models
+                w = wide.loc[uid]
+                if any(name not in w.columns or w[name].isna().any() for name, _ in members):
+                    ok = False
+                    break
+                f = sum(w[name] * weight for name, weight in members)
+                test_rows[rule].append(pd.DataFrame({"a": a, "f": f.reindex(a.index)}))
+                maes[rule] = (f.reindex(a.index) - a).abs().mean()
+            if ok:
+                naive = wide.loc[uid][REFERENCE_MODEL].reindex(a.index)
+                test_rows.setdefault("naive", []).append(pd.DataFrame({"a": a, "f": naive}))
+                per_series.append(maes)
+            else:  # keep the rules on the same points
+                for rule in RULES:
+                    if len(test_rows[rule]) > len(per_series):
+                        test_rows[rule].pop()
+    p = pd.DataFrame(per_series)
+    w = {k: wape(pd.concat(v).a, pd.concat(v).f) for k, v in test_rows.items()}
+    gain = (p["per_series"] - p["blend"]) / p["per_series"] * 100
+    print(f"== {freq}: {len(p)} series x test folds (choose on earlier folds, test folds {folds[1:]})")
+    print(f"   WAPE  per_series {w['per_series']:.1f}%   blend {w['blend']:.1f}%   naive {w['naive']:.1f}%   "
+          f"| blend vs per_series, series x folds >5% better / worse: {(gain > 5).sum()} / {(gain < -5).sum()}")
+
+
+if __name__ == "__main__":
+    for frequency in sys.argv[1:] or ["yearly", "monthly", "weekly", "daily"]:
+        check(frequency)

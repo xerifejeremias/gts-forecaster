@@ -44,6 +44,7 @@ from typing import Any
 
 from gts_forecaster.cleaning.outliers import OUTLIER_ACTIONS, OUTLIER_METHODS
 from gts_forecaster.columns import ID
+from gts_forecaster.io.loaders import input_fingerprint, resolve_source
 from gts_forecaster.config import FORECAST_MODES, ON_MODEL_ERROR, RunConfig, load_config, project_root
 from gts_forecaster.data_preparation import prepare_input_data
 from gts_forecaster.evaluation.metrics import METRICS
@@ -123,7 +124,7 @@ def run_pipeline(
         "fast_only": cfg.fast_only,
         "forecast_mode": cfg.forecast_mode,
         "partial_run": cfg.is_partial_run,
-        "input": _fingerprint(Path(cfg.data_path)),
+        "input": _fingerprint(Path(cfg.data_path)) if resolve_source(cfg) != "sql" else input_fingerprint(cfg),
         "config": _jsonable(dataclasses.asdict(cfg)),
         "environment": _environment(),
         "steps": [],

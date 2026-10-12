@@ -759,6 +759,52 @@ High-effort review of `src/gts_forecaster` (built-in code-review). 8 findings, a
 7. **AutoARIMA's minimum history ignored `options: {season_length: ...}`**: it follows that value now.
 8. **`ml_features` accepted rolling windows of 1** (silently dropped): windows must be >= 2.
 
+## Selection rule "blend" (2026-10-12, decided by the user)
+
+Every extra set of candidates (tree settings, ETS/Theta versions, Prophet) looked better in the backtest but
+not out of sample: with 2-3 folds per series a model often wins by luck. Rules compared offline on the saved
+backtests (expanding window: choose on folds < k, test on fold k; 2 test folds per series): current per-series
+top 3; top 5; best version per family; global shortlist of 10; one common mix for all series; median instead
+of mean; **blend: own top 3 at half weight + the common mix (top 3 over all series) at half weight**; own
+mix only if 5% better than the common mix. The common mix alone was best on average but worse on weekly and
+harmed more single series; the blend was never worse than the current rule. Implemented as
+`selection_rule: blend` (default) / `per_series`, `blend_share: 0.5` (config; `selection.common_mix`,
+`_blend`; the selection meta records the rule). Entries hold up to 2 x top_n models; overlapping models add
+their weights; a common model without a valid score for the series is left out of its blend.
+`scripts/holdout_check.py` now replays the pipeline's own `select_models` out of sample for both rules.
+Full runs with the blend (all four frequencies): fair check per_series -> blend: yearly 17.0% -> 15.9%,
+monthly 13.3% -> 12.8%, weekly 26.5% -> 26.5%, daily 23.9% -> 23.3%; series x folds more than 5% better /
+worse: 27/25, 7/1, 23/10, 14/7. Common mixes on the synthetic data: mostly Chronos models (yearly also
+lightgbm_static, weekly ets_no_trend).
+
+## Real data input (2026-10-12)
+
+The user's first real data will have at least `ds`, `unique_id`, `y`, `MARKET_CODE`, `PRODUCT_CATEGORY_CODE`,
+`TMO` (company) and possibly other columns; roughly 100-1000 series (daily nearer 100, monthly nearer 1000);
+delivered as CSV, Parquet or an SQL query; volumes with some negative values (loadings, restatements); no
+known promotions yet, maybe prices and planned price increases later. Built:
+- `io/loaders.load_input(config)`: one entry point for `data_source: auto | csv | parquet | sql` (auto: by the
+  data_path suffix, SQL when `sql_query` / `sql_query_file` is set; the SQLAlchemy URL from the environment
+  variable `sql_connection_env`, default `GTS_SQL_URL`, or `sql_connection`; passwords masked in logs and run
+  records). `input_columns: {id, date, target}` renames the input columns to uuid/date/target on reading, so
+  the contract is unchanged; `extra_columns: ignore` (default, logged) | `error`; `id_format: any` (default:
+  any non-empty text) | `uuid` (the old UUID check). Used by data preparation and the report; the run record
+  fingerprints files as before and SQL inputs by query hash and masked server.
+- pyproject: `pyarrow` (core) and an optional `sql` extra (SQLAlchemy); a database driver is installed
+  separately.
+- **Generic static features:** the shipped `global_static` feature set named the synthetic columns (market,
+  product, company), so with other column names the backtest stopped (found by the end-to-end test). Now
+  `identifiers: all` and `group_stats.by: each` resolve to the input's static columns
+  (`features/static.resolve_spec`); the synthetic code-part set is kept as `global_static_codes_example`.
+  Single words (`all`, `each`) are no longer split into letters by the parser.
+- End-to-end check: the synthetic monthly data reshaped to the real format (non-UUID ids such as
+  `DE04_F0101_TMOA_000`, an extra `SOURCE_SYSTEM` column, negative values) as Parquet ran backtest, forecast
+  and report; output columns `unique_id, ds, MARKET_CODE, PRODUCT_CATEGORY_CODE, TMO, forecast`; the report
+  filters on the three real static columns. Tests: `tests/unit/test_loaders.py` (CSV, Parquet, SQLite via an
+  environment variable, mapping, extra columns, id format), contracts, static features.
+- Still to check with the real file: date convention (month start vs month end), the scale (benchmark), and
+  whether the static feature statistics make sense for the real codes.
+
 ## Next steps (updated 2026-10-11)
 
 1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily

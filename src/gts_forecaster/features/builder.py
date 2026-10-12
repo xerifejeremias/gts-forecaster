@@ -136,7 +136,9 @@ class FeatureBuilder:
                     f"feature set '{feature_set.name}' uses static features, but the input has no "
                     "static columns. List them in `static_columns` in config/default.yaml."
                 )
+            spec = stc.resolve_spec(spec, static)  # `all` / `each` -> the input's static columns
             self._static_names = stc.feature_names(spec, stc.check_spec(spec, static))
+        self._static_spec = spec
 
     # ---- columns ------------------------------------------------------------------------------
 
@@ -200,7 +202,7 @@ class FeatureBuilder:
         """Static feature values for the rows of `frame`, computed from `train`."""
         if not self._static_names:
             return pd.DataFrame(index=frame.index)
-        table = stc.static_feature_table(train, self.static, self.feature_set.static, self.season_length)
+        table = stc.static_feature_table(train, self.static, self._static_spec, self.season_length)
         missing = sorted(set(frame[ID]) - set(table.index))
         if missing:
             raise FeatureError(f"no static features for series {missing[:5]}: they are not in the training data")
@@ -238,6 +240,13 @@ def _config_dir(config_dir: Path | None) -> Path:
     return Path(config_dir) if config_dir else project_root() / "config"
 
 
+def _names(value: Any) -> tuple[str, ...]:
+    """A list of names, or a single name such as `all` (not split into letters)."""
+    if not value:
+        return ()
+    return (value,) if isinstance(value, str) else tuple(value)
+
+
 def _parse_static(set_name: str, raw: Any) -> stc.StaticSpec:
     if not raw:
         return stc.StaticSpec()
@@ -248,7 +257,8 @@ def _parse_static(set_name: str, raw: Any) -> stc.StaticSpec:
     if set(groups_raw) - {"by", "stats"}:
         raise FeatureError(f"feature set '{set_name}': group_stats takes only 'by' and 'stats'")
     group_by = []
-    for entry in groups_raw.get("by") or []:
+    by = groups_raw.get("by") or []
+    for entry in ([by] if isinstance(by, str) else by):  # `by: each` is one word, not a list
         columns = tuple([entry] if isinstance(entry, str) else entry)
         if not columns or not all(isinstance(c, str) for c in columns):
             raise FeatureError(f"feature set '{set_name}': each group in 'by' is a column name or a list of them")
@@ -259,7 +269,7 @@ def _parse_static(set_name: str, raw: Any) -> stc.StaticSpec:
             raise FeatureError(f"feature set '{set_name}': code_parts.{column} must be a list of lengths")
         code_parts[str(column)] = tuple(lengths)
     return stc.StaticSpec(
-        identifiers=tuple(raw.get("identifiers") or ()),
+        identifiers=_names(raw.get("identifiers")),
         code_parts=code_parts,
         encoding=raw.get("encoding", "ordinal"),
         group_by=tuple(group_by),

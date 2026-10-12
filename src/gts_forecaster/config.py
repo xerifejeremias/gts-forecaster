@@ -57,6 +57,16 @@ _ALLOWED_KEYS = {
     "forecast_check_threshold",
     "forecast_check_max_ratio",
     "forecast_models",
+    "selection_rule",
+    "blend_share",
+    "data_source",
+    "sql_query",
+    "sql_query_file",
+    "sql_connection",
+    "sql_connection_env",
+    "input_columns",
+    "extra_columns",
+    "id_format",
 }
 _OPTIONAL_KEYS = {
     "horizon", "backtest_step", "known_future_columns", "future_features_path", "static_columns",
@@ -64,7 +74,9 @@ _OPTIONAL_KEYS = {
     "forecast_mode", "fitted_models_dir", "output_file", "output_rename",
     "forecast_floor", "runs_dir",
     "forecast_check_action", "forecast_check_threshold", "forecast_check_max_ratio",
-    "forecast_models",
+    "forecast_models", "selection_rule", "blend_share",
+    "data_source", "sql_query", "sql_query_file", "sql_connection", "sql_connection_env",
+    "input_columns", "extra_columns", "id_format",
 }
 
 
@@ -142,6 +154,23 @@ class RunConfig:
     # Which models `forecast` runs (frozen_selection mode): "selected" = only those named in the
     # selection (what the output needs), "all" = every candidate, for per-model lines in the report.
     forecast_models: str = "selected"
+    # How each series' models are chosen (selection.py): "blend" = own top-N mix (weight 1 - blend_share)
+    # plus the common mix of the N best models over all series (blend_share); "per_series" = own top N only.
+    selection_rule: str = "blend"
+    blend_share: float = 0.5
+    # Input source (io/loaders.py): auto (from the data_path suffix, or sql when a query is set) | csv |
+    # parquet | sql. SQL: a query (text or file, {frequency} replaced) and a SQLAlchemy URL, given
+    # directly or (better, no password in the config) in the environment variable sql_connection_env.
+    data_source: str = "auto"
+    sql_query: str | None = None
+    sql_query_file: Path | None = None
+    sql_connection: str | None = None
+    sql_connection_env: str = "GTS_SQL_URL"
+    # Names of the id, date and target columns in the input data; they are renamed to uuid, date,
+    # target on reading. Static and explanatory columns keep their names.
+    input_columns: tuple[tuple[str, str], ...] = (("id", "uuid"), ("date", "date"), ("target", "target"))
+    extra_columns: str = "ignore"  # ignore (drop, with a log line) | error: input columns not used
+    id_format: str = "any"  # any non-empty text | uuid: series ids must be UUIDs
 
     @property
     def is_partial_run(self) -> bool:
@@ -380,6 +409,39 @@ def load_config(
     if isinstance(check_ratio, bool) or not isinstance(check_ratio, (int, float)) or not check_ratio > 1:
         raise ConfigError(f"forecast_check_max_ratio must be a number > 1, got {check_ratio!r}")
 
+    data_source = raw.get("data_source", "auto")
+    if data_source not in ("auto", "csv", "parquet", "sql"):
+        raise ConfigError(f"data_source must be auto, csv, parquet or sql, got {data_source!r}")
+    for key in ("sql_query", "sql_connection"):
+        if raw.get(key) is not None and not isinstance(raw.get(key), str):
+            raise ConfigError(f"{key} must be text")
+    sql_query_file = raw.get("sql_query_file")
+    if sql_query_file is not None:
+        sql_query_file = Path(str(sql_query_file).format(frequency=frequency))
+        if not sql_query_file.is_absolute():
+            sql_query_file = root / sql_query_file
+    sql_env = raw.get("sql_connection_env", "GTS_SQL_URL")
+    if not isinstance(sql_env, str) or not sql_env:
+        raise ConfigError("sql_connection_env must be the name of an environment variable")
+    input_columns = {"id": "uuid", "date": "date", "target": "target", **(raw.get("input_columns") or {})}
+    if set(input_columns) != {"id", "date", "target"} or not all(isinstance(v, str) and v for v in input_columns.values()):
+        raise ConfigError(f"input_columns may only map id, date and target to column names, got {input_columns}")
+    if len(set(input_columns.values())) != 3:
+        raise ConfigError(f"input_columns must name three different columns, got {input_columns}")
+    extra_columns = raw.get("extra_columns", "ignore")
+    if extra_columns not in ("ignore", "error"):
+        raise ConfigError(f"extra_columns must be ignore or error, got {extra_columns!r}")
+    id_format = raw.get("id_format", "any")
+    if id_format not in ("any", "uuid"):
+        raise ConfigError(f"id_format must be any or uuid, got {id_format!r}")
+
+    selection_rule = raw.get("selection_rule", "blend")
+    if selection_rule not in ("blend", "per_series"):
+        raise ConfigError(f"selection_rule must be blend or per_series, got {selection_rule!r}")
+    blend_share = raw.get("blend_share", 0.5)
+    if isinstance(blend_share, bool) or not isinstance(blend_share, (int, float)) or not 0 < blend_share < 1:
+        raise ConfigError(f"blend_share must be a number between 0 and 1, got {blend_share!r}")
+
     forecast_models = raw.get("forecast_models", "selected")
     if forecast_models not in FORECAST_MODELS:
         raise ConfigError(f"forecast_models must be one of {list(FORECAST_MODELS)}, got {forecast_models!r}")
@@ -462,4 +524,14 @@ def load_config(
         forecast_check_threshold=float(check_threshold),
         forecast_check_max_ratio=float(check_ratio),
         forecast_models=forecast_models,
+        selection_rule=selection_rule,
+        blend_share=float(blend_share),
+        data_source=data_source,
+        sql_query=raw.get("sql_query"),
+        sql_query_file=sql_query_file,
+        sql_connection=raw.get("sql_connection"),
+        sql_connection_env=sql_env,
+        input_columns=tuple(input_columns.items()),
+        extra_columns=extra_columns,
+        id_format=id_format,
     )

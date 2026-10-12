@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pandas as pd
@@ -60,6 +60,27 @@ class StaticSpec:
     @property
     def is_empty(self) -> bool:
         return not (self.identifiers or self.group_by or self.series_stats)
+
+
+ALL_COLUMNS = "all"  # identifiers: all -> every static column of the input
+EACH_COLUMN = "each"  # group_stats.by: each -> one group per static column
+
+
+def resolve_spec(spec: StaticSpec, static: pd.DataFrame) -> StaticSpec:
+    """The spec with `all` / `each` replaced by the input's static columns, so one feature set works
+    whatever the columns are called (market / MARKET_CODE ...)."""
+    columns = _available(static)
+    identifiers: list[str] = []
+    for name in spec.identifiers:
+        for column in (columns if name == ALL_COLUMNS else [name]):
+            if column not in identifiers:
+                identifiers.append(column)
+    group_by: list[tuple[str, ...]] = []
+    for group in spec.group_by:
+        for entry in ([(c,) for c in columns] if group == (EACH_COLUMN,) else [group]):
+            if entry not in group_by:
+                group_by.append(entry)
+    return replace(spec, identifiers=tuple(identifiers), group_by=tuple(group_by))
 
 
 def part_name(column: str, length: int) -> str:

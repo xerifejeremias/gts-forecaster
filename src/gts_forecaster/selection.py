@@ -11,6 +11,14 @@ For every series:
      ensemble: the first `short_series_n` models of `short_series_models` that it has enough
      data for, equally weighted.
   5. A series where no model has a valid score gets the reference model.
+
+Rule `blend` (default since 2026-10-12, `selection_rule` in the config): the series' own top-N mix
+from step 3 gets weight 1 - `blend_share`, and a common mix gets `blend_share`. The common mix is the N
+models with the lowest error over all series together (sum of each model's mean score per series /
+the same sum for the reference model, over the series where the model has a valid score; a model must
+cover at least half of the backtested series). A common model without a valid score for a series is
+left out of its blend (the others share the weight). This damps models that won a series' few
+backtest folds by luck: offline it was better than `per_series` at 3 of 4 frequencies and never worse.
 """
 
 from __future__ import annotations
@@ -31,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 REFERENCE_MODEL = "naive"
 ENSEMBLE_ROW = "ensemble"
+SELECTION_RULES = ("blend", "per_series")
+_COMMON_MIN_COVERAGE = 0.5  # a common-mix model must have scores for half of the backtested series
 TABLE_COLUMNS = [ID, MODEL, "n_folds", SCORE, "rank", "weight", "note"]
 _EPS = 1e-12
 
@@ -140,6 +150,49 @@ def add_missing_series(
     return {**selection, "series": series}, added
 
 
+def common_mix(
+    scores_by_id: Mapping[str, pd.DataFrame], models: Mapping[str, BaseForecaster], n: int
+) -> list[str]:
+    """The `n` models with the lowest error over all series together (see the module docstring)."""
+    model_sum: dict[str, float] = {}
+    naive_sum: dict[str, float] = {}
+    covered: dict[str, int] = {}
+    n_backtested = 0
+    for mine in scores_by_id.values():
+        reference = mine.loc[mine[MODEL] == REFERENCE_MODEL]
+        folds = set(reference[FOLD])
+        if not folds or reference[SCORE].isna().any():
+            continue
+        n_backtested += 1
+        naive_mean = float(reference[SCORE].mean())
+        on_folds = mine[mine[FOLD].isin(folds)]
+        for name, g in on_folds.groupby(MODEL, sort=False):
+            if name in models and len(g) == len(folds) and g[SCORE].notna().all():
+                model_sum[name] = model_sum.get(name, 0.0) + float(g[SCORE].mean())
+                naive_sum[name] = naive_sum.get(name, 0.0) + naive_mean
+                covered[name] = covered.get(name, 0) + 1
+    if not n_backtested:
+        return []
+    order = {name: k for k, name in enumerate(models)}
+    ratios = [
+        (model_sum[m] / naive_sum[m] if naive_sum[m] > 0 else float("inf"), order[m], m)
+        for m in model_sum if covered[m] >= _COMMON_MIN_COVERAGE * n_backtested
+    ]
+    return [m for _, _, m in sorted(ratios)[:n]]
+
+
+def _blend(own: Sequence[tuple[str, float]], common: Sequence[str], share: float) -> list[tuple[str, float]]:
+    """Own mix at weight 1 - share plus the common models at `share` (equal), merged by name."""
+    if not common:
+        return list(own)
+    weights: dict[str, float] = {}
+    for name, w in own:
+        weights[name] = weights.get(name, 0.0) + (1 - share) * w
+    for name in common:
+        weights[name] = weights.get(name, 0.0) + share / len(common)
+    return list(weights.items())
+
+
 def select_models(
     result: BacktestResult,
     models: Mapping[str, BaseForecaster],
@@ -148,18 +201,27 @@ def select_models(
     ensemble_weights: str = "equal",
     short_series_models: Sequence[str] = ("naive", "seasonal_naive", "drift"),
     short_series_n: int = 2,
+    rule: str = "blend",
+    blend_share: float = 0.5,
 ) -> Selection:
     """Pick the model(s) for every series in the backtested data."""
     if REFERENCE_MODEL not in models:
         raise SelectionError(f"the model catalog must contain the reference model '{REFERENCE_MODEL}'")
     if top_n < 1 or short_series_n < 1:
         raise SelectionError("top_n and short_series_n must be >= 1")
+    if rule not in SELECTION_RULES:
+        raise SelectionError(f"selection rule must be one of {list(SELECTION_RULES)}, got {rule!r}")
+    if not 0 < blend_share < 1:
+        raise SelectionError(f"blend_share must be between 0 and 1, got {blend_share!r}")
     order = {name: k for k, name in enumerate(models)}
 
     # group once: filtering the whole tables per series grows with the square of the series count
     scores_by_id = {uid: g for uid, g in result.scores.groupby(ID, sort=False)}
     predictions_by_id = {uid: g for uid, g in result.predictions.groupby(ID, sort=False)}
     empty_scores = result.scores.iloc[0:0]
+    common = common_mix(scores_by_id, models, top_n) if rule == "blend" else []
+    if rule == "blend":
+        logger.info("selection: common mix over all series: %s", common)
     series: dict[str, SeriesSelection] = {}
     rows: list[dict] = []
 
@@ -193,15 +255,19 @@ def select_models(
             rows.append({ID: uid, MODEL: REFERENCE_MODEL, "n_folds": len(reference_folds), SCORE: np.nan, "rank": np.nan, "weight": 1.0, "note": note})
             continue
 
-        # 3. best model or top-N ensemble
+        # 3. best model or top-N ensemble, blended with the common mix (rule "blend")
         top = competing[:top_n]
-        names = [name for _, _, name in top]
-        weights = _weights([score for score, _, _ in top], ensemble_weights)
-        series[uid] = SeriesSelection(tuple(zip(names, weights, strict=True)))
-        chosen_weight = dict(zip(names, weights, strict=True))
+        own = list(zip([name for _, _, name in top], _weights([s for s, _, _ in top], ensemble_weights), strict=True))
+        valid = {name for _, _, name in competing}
+        mixed = _blend(own, [m for m in common if m in valid], blend_share) if rule == "blend" else own
+        names = [name for name, _ in mixed]
+        weights = [w for _, w in mixed]
+        note = "blend: own top models + common mix" if rule == "blend" and len(mixed) > len(own) else None
+        series[uid] = SeriesSelection(tuple(mixed), note)
+        chosen_weight = dict(mixed)
         for rank, (score, _, name) in enumerate(competing, start=1):
             rows.append({ID: uid, MODEL: name, "n_folds": len(reference_folds), SCORE: score, "rank": rank, "weight": chosen_weight.get(name, 0.0), "note": None})
         if len(names) > 1:
-            rows.append({ID: uid, MODEL: ENSEMBLE_ROW, "n_folds": len(reference_folds), SCORE: _ensemble_score(result, uid, names, weights, reference_folds, predictions_by_id.get(uid)), "rank": np.nan, "weight": 1.0, "note": f"top {len(names)} models, {ensemble_weights} weights"})
+            rows.append({ID: uid, MODEL: ENSEMBLE_ROW, "n_folds": len(reference_folds), SCORE: _ensemble_score(result, uid, names, weights, reference_folds, predictions_by_id.get(uid)), "rank": np.nan, "weight": 1.0, "note": f"{len(names)} models ({rule}), {ensemble_weights} weights"})
 
     return Selection(series=series, table=pd.DataFrame(rows, columns=TABLE_COLUMNS))

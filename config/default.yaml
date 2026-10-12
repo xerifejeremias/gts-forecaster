@@ -9,6 +9,21 @@ horizon: null
 
 # Input file. {frequency} is replaced with the frequency above. Relative to the project root.
 data_path: "data/{frequency}/{frequency}_synthetic.csv"
+# Where the input comes from: auto (CSV, or Parquet for a .parquet/.pq data_path, or SQL when a query is
+# set) | csv | parquet | sql. For SQL give the query (sql_query, or sql_query_file; {frequency} is
+# replaced) and a SQLAlchemy URL in the environment variable named by sql_connection_env (keeps the
+# password out of this file), or in sql_connection. Example: postgresql://user:password@host:5432/db
+data_source: auto
+sql_query: null
+sql_query_file: null
+sql_connection: null
+sql_connection_env: GTS_SQL_URL
+# Names of the id, date and target columns in your data, e.g. {id: unique_id, date: ds, target: y}.
+input_columns: {id: uuid, date: date, target: target}
+# Columns that are not id/date/target, explanatory or static: ignore (dropped, logged) | error
+extra_columns: ignore
+# Series ids: any (any non-empty text) | uuid (must be UUIDs)
+id_format: any
 
 # Explanatory columns that must be present in the input file (besides uuid, date, target).
 explanatory_columns: [x_temp, x_promo, x_price]
@@ -38,6 +53,13 @@ backtest_step: null
 top_n: 3
 # How ensemble members are weighted: equal | inverse_error (better backtest score = more weight)
 ensemble_weights: equal
+# How each series' models are chosen:
+#   blend       (default, decided 2026-10-12) the series' own top_n mix gets weight 1 - blend_share and a
+#               common mix (the top_n models with the lowest error over all series) gets blend_share.
+#               Damps models that won a series' few backtest folds by luck.
+#   per_series  only the series' own top_n mix (the rule before 2026-10-12)
+selection_rule: blend
+blend_share: 0.5
 # Series with too little history to be backtested get a fixed ensemble:
 # the first `short_series_n` models of this list that the series has enough data for.
 short_series_models: [naive, seasonal_naive, drift]

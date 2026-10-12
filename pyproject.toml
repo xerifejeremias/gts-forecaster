@@ -17,6 +17,10 @@ pandas = ">=2.2.3,<3"
 numpy = ">=2.1,<3"
 pandera = { version = ">=0.24,<1", extras = ["pandas"] }
 pyyaml = ">=6.0"
+# Input formats (io/loaders.py): Parquet files need pyarrow; SQL queries need SQLAlchemy plus the
+# driver of your database (e.g. psycopg for PostgreSQL, pyodbc for SQL Server), installed separately.
+pyarrow = ">=15"
+sqlalchemy = { version = ">=2.0,<3", optional = true }
 # Optional: public holidays by country for the business-day calendar features (features.yaml).
 holidays = { version = ">=0.50,<1", optional = true }  # prophet needs holidays < 1
 # Optional model families. Install what you need, for example: poetry install --extras "stats ml foundation"
@@ -40,6 +44,7 @@ ml = ["mlforecast", "lightgbm", "xgboost", "scikit-learn"]
 foundation = ["chronos-forecasting"]
 prophet = ["prophet"]
 orbit = ["orbit-ml"]
+sql = ["sqlalchemy"]
 # everything that installs without a compiler (Orbit is left out on purpose, see above)
 all-models = ["statsforecast", "mlforecast", "lightgbm", "xgboost", "scikit-learn", "chronos-forecasting", "prophet"]
 

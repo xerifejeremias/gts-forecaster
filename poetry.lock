@@ -2460,10 +2460,10 @@ test = ["psleak", "pytest", "pytest-instafail", "pytest-xdist", "pywin32 ; os_na
 name = "pyarrow"
 version = "26.0.0"
 description = "Python library for Apache Arrow"
-optional = true
+optional = false
 python-versions = ">=3.11"
 groups = ["main"]
-markers = "(extra == \"stats\" or extra == \"all-models\") and (sys_platform == \"linux\" or sys_platform == \"win32\") and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\") or (extra == \"stats\" or extra == \"all-models\") and sys_platform != \"linux\" or (extra == \"stats\" or extra == \"all-models\") and platform_machine != \"x86_64\""
+markers = "(sys_platform == \"linux\" or sys_platform == \"win32\") and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\") or sys_platform != \"linux\" or platform_machine != \"x86_64\""
 files = [
     {file = "pyarrow-26.0.0-cp311-cp311-macosx_12_0_arm64.whl", hash = "sha256:fcdd1e04982637c6042337d3e24d472f938f01fdc502e2b994844b726d12c3f4"},
     {file = "pyarrow-26.0.0-cp311-cp311-macosx_12_0_x86_64.whl", hash = "sha256:f800e9e722c145ccd18012d82a864cb21bfee4ba4ceffde77100d25eced511a9"},
@@ -3354,7 +3354,7 @@ description = "Database Abstraction Library"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
-markers = "(extra == \"ml\" or extra == \"all-models\") and (sys_platform == \"linux\" or sys_platform == \"win32\") and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\") or (extra == \"ml\" or extra == \"all-models\") and sys_platform != \"linux\" or (extra == \"ml\" or extra == \"all-models\") and platform_machine != \"x86_64\""
+markers = "(extra == \"sql\" or extra == \"ml\" or extra == \"all-models\") and (sys_platform == \"linux\" or sys_platform == \"win32\" or sys_platform != \"linux\" and sys_platform != \"win32\" or platform_machine != \"x86_64\") and (platform_machine == \"aarch64\" or platform_machine == \"x86_64\" or sys_platform != \"linux\" or platform_machine != \"aarch64\" and platform_machine != \"x86_64\")"
 files = [
     {file = "sqlalchemy-2.1.4-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:a6d147c31e189541ae7cd990482c4f960f9e8abce186551225fa355856dbf1a5"},
     {file = "sqlalchemy-2.1.4-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:55072780d1aae84dea443ce27edeb745f6cc4d19ad89416abbb6b49712080e7c"},
@@ -4198,9 +4198,10 @@ holidays = ["holidays"]
 ml = ["lightgbm", "mlforecast", "scikit-learn", "xgboost"]
 orbit = ["orbit-ml"]
 prophet = ["prophet"]
+sql = ["sqlalchemy"]
 stats = ["statsforecast"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "25ab463e3db3359a2a2135586b160cbbe73cbc0729dabaa4be407b9e098190e8"
+content-hash = "529bd902b45dec197f94bfe6b958b3cf9934516ffaa31cff2a5a232cf0e54785"

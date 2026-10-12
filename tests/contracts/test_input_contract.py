@@ -100,6 +100,16 @@ def test_malformed_uuid_fails(bad):
     df = make_panel()
     df.loc[0, "uuid"] = bad
     with pytest.raises(DataContractError, match="uuid"):
+        validate(df, id_format="uuid")  # the UUID format is checked only when asked for
+    validate(df.assign(uuid=df["uuid"].where(df.index != 0, df.loc[1, "uuid"])))  # control: valid ids pass
+
+
+def test_any_text_id_is_accepted_by_default_but_not_empty():
+    df = make_panel()
+    df["uuid"] = df["uuid"].map({u: f"DE04_F0101_{k}" for k, u in enumerate(df["uuid"].unique())})
+    validate(df)
+    df.loc[0, "uuid"] = ""
+    with pytest.raises(DataContractError, match="uuid"):
         validate(df)
 
 
@@ -141,7 +151,7 @@ def test_all_problems_are_reported_together():
     df["surprise"] = 1.0
     df.loc[0, "uuid"] = "bad"
     with pytest.raises(DataContractError) as info:
-        validate(df)
+        validate(df, id_format="uuid")
     message = str(info.value)
     assert "surprise" in message and "uuid" in message
 

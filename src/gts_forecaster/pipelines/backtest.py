@@ -119,6 +119,8 @@ def run_backtest_pipeline(
             ensemble_weights=cfg.ensemble_weights,
             short_series_models=cfg.short_series_models,
             short_series_n=cfg.short_series_n,
+            rule=cfg.selection_rule,
+            blend_share=cfg.blend_share,
         )
         for variant, candidates in variants.items()
     }
@@ -140,6 +142,8 @@ def run_backtest_pipeline(
         "n_folds": cfg.n_folds,
         "top_n": cfg.top_n,
         "ensemble_weights": cfg.ensemble_weights,
+        "selection_rule": cfg.selection_rule,
+        "blend_share": cfg.blend_share,
         "data_cutoff": prepared.cutoff.strftime("%Y-%m-%d"),
         "includes_slow_models": includes_slow,
     }

@@ -33,6 +33,35 @@ C++ toolchain (MinGW / RTools); that is why it is not in `all-models`. Prophet i
 A model whose library is missing is skipped with a warning that names the extra. The baselines (naive,
 seasonal_naive, drift) always run.
 
+## Your own data
+
+Set these in `config/default.yaml` (example for data with `ds`, `unique_id`, `y` and market / product
+category / company columns; other columns in the file are ignored):
+
+```yaml
+data_path: "data/{frequency}/volumes_{frequency}.parquet"   # .csv or .parquet; {frequency} is replaced
+input_columns: {id: unique_id, date: ds, target: y}
+static_columns: [MARKET_CODE, PRODUCT_CATEGORY_CODE, TMO]
+explanatory_columns: []                 # e.g. [price] once there is one
+output_rename: {uuid: unique_id, date: ds}   # output columns named like the input
+```
+
+- **CSV or Parquet:** chosen from the file suffix (`data_source: auto`), or set `data_source: csv | parquet`.
+- **SQL:** `sql_query: "SELECT ds, unique_id, y, MARKET_CODE, PRODUCT_CATEGORY_CODE, TMO FROM volumes_{frequency}"`
+  (or `sql_query_file`), and the SQLAlchemy URL in the environment variable `GTS_SQL_URL` (keeps the password
+  out of the config; `sql_connection` works too). Install with `--extras sql` plus your database's driver
+  (e.g. `psycopg` for PostgreSQL, `pyodbc` for SQL Server).
+- **Series ids** can be any text (`id_format: uuid` checks for UUIDs). **Extra columns** are dropped with a log
+  line (`extra_columns: error` stops instead).
+- **Dates** must sit on the frequency's grid: monthly data on the first of the month (`pandas_freq: MS` in
+  `config/frequency_profiles.yaml`). For month-end dates use `pandas_freq: ME` and `calendar.period_anchor: end`.
+- **Zeros and negative values** are accepted. Forecasts are floored at 0 (`forecast_floor: 0`; `null` allows
+  negative forecasts). Models that need positive values (Tweedie, multiplicative ETS) fall back cleanly.
+- **Future values** of explanatory columns (e.g. planned prices): `known_future_columns` and
+  `future_features_path` (see OVERVIEW.md, "Explanatory variables in the future").
+
+Check a file before running anything: `poetry run validate-input --frequency monthly`.
+
 ## Run
 
 Check an input file against the input contract and repair missing periods:

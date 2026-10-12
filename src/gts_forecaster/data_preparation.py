@@ -20,7 +20,7 @@ from gts_forecaster.contracts.errors import DataContractError
 from gts_forecaster.contracts.frequency_checks import check_complete_panel, check_model_frame
 from gts_forecaster.contracts.input_schema import validate_input_structure
 from gts_forecaster.contracts.static_checks import extract_static_table
-from gts_forecaster.io.loaders import load_input_csv
+from gts_forecaster.io.loaders import load_input
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +50,14 @@ def prepare_input_data(config: RunConfig) -> PreparedInput:
     `min_series_length` rows pass the structural checks but then get the last-value fallback
     (with a warning) instead of stopping the run.
     """
-    raw = load_input_csv(config.data_path, config.static_columns)
+    raw = load_input(config)
     validated = validate_input_structure(
         raw,
         config.explanatory_columns,
         pandas_freq=config.profile.pandas_freq,
         min_series_length=1,  # too-short series get a fallback below instead of stopping the run
         static_columns=config.static_columns,
+        id_format=config.id_format,
     )
     static = to_model_format(extract_static_table(validated, config.static_columns))
     long_enough, short_fallback = split_short_series(

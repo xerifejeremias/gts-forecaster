@@ -268,22 +268,48 @@ def test_sets_without_static_features_work_without_a_static_table():
     assert "month" in b.transform_history(_train()).columns
 
 
-def test_shipped_global_static_set_builds_for_the_synthetic_columns():
+def _static_train(freq, ids):
+    ds = pd.date_range("2022-01-01", periods=30, freq=freq)
+    return pd.concat([pd.DataFrame({"unique_id": u, "ds": ds, "y": np.arange(30.0) + i})
+                      for i, u in enumerate(ids)], ignore_index=True)
+
+
+@pytest.mark.parametrize("names", [("market", "product", "company"),
+                                   ("MARKET_CODE", "PRODUCT_CATEGORY_CODE", "TMO")])
+def test_shipped_global_static_set_works_whatever_the_columns_are_called(names):
     cfg = load_feature_config()
-    assert "global_static" in cfg.sets
     spec = cfg.sets["global_static"].static
+    assert spec.identifiers == ("all",) and spec.group_by == (("each",),) and not spec.code_parts
+    static = pd.DataFrame({"unique_id": ["a", "b"], names[0]: ["DE04", "PT04"],
+                           names[1]: ["F0101", "M0118"], names[2]: ["company A", "company B"]})
+    for freq, season in (("YS", 1), ("MS", 12), ("W-MON", 52), ("D", 7)):
+        b = build_feature_builders(cfg, ["global_static"], pandas_freq=freq, season_length=season,
+                                   static=static)["global_static"]
+        out = b.transform_history(_static_train(freq, ["a", "b"]))
+        # 3 identifiers + 4 series stats + 3 groups x 3 stats
+        assert set(b.static_columns) <= set(out.columns) and len(b.static_columns) == 16
+        assert f"id_{names[0]}" in b.static_columns and f"grp_{names[2]}_mean" in b.static_columns
+
+
+def test_code_parts_example_set_builds_for_the_synthetic_columns():
+    cfg = load_feature_config()
+    spec = cfg.sets["global_static_codes_example"].static
     assert spec.code_parts == {"market": (2,), "product": (1, 3)}
     assert spec.group_by[-1] == ("market", "product_p1")
     static = pd.DataFrame({"unique_id": ["a", "b"], "market": ["DE04", "PT04"],
                            "product": ["F0101", "M0118"], "company": ["company A", "company B"]})
-    for freq, season in (("YS", 1), ("MS", 12), ("W-MON", 52), ("D", 7)):
-        b = build_feature_builders(cfg, ["global_static"], pandas_freq=freq, season_length=season,
-                                   static=static)["global_static"]
-        ds = pd.date_range("2022-01-01", periods=30, freq=freq)
-        train = pd.concat([pd.DataFrame({"unique_id": u, "ds": ds, "y": np.arange(30.0) + i})
-                           for i, u in enumerate(["a", "b"])], ignore_index=True)
-        out = b.transform_history(train)
-        assert set(b.static_columns) <= set(out.columns) and len(b.static_columns) == 23
+    b = build_feature_builders(cfg, ["global_static_codes_example"], pandas_freq="MS", season_length=12,
+                               static=static)["global_static_codes_example"]
+    out = b.transform_history(_static_train("MS", ["a", "b"]))
+    assert set(b.static_columns) <= set(out.columns) and len(b.static_columns) == 23
+
+
+def test_all_and_each_can_be_mixed_with_named_columns():
+    from gts_forecaster.features.static import StaticSpec, resolve_spec
+
+    static = pd.DataFrame({"unique_id": ["a"], "m": ["x"], "p": ["y"]})
+    spec = resolve_spec(StaticSpec(identifiers=("p", "all"), group_by=(("each",), ("m", "p"))), static)
+    assert spec.identifiers == ("p", "m") and spec.group_by == (("m",), ("p",), ("m", "p"))
 
 
 def test_feature_file_rejects_bad_static_sections(tmp_path):

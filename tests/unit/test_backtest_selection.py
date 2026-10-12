@@ -85,10 +85,44 @@ def test_filled_periods_are_not_scored():
 
 def test_selection_picks_best_model_per_series():
     r = _backtest()
-    sel = select_models(r, _models(), top_n=1)
+    sel = select_models(r, _models(), top_n=1, rule="per_series")
     assert sel.series["linear"].models == (("drift", 1.0),)
     assert sel.series["const"].models[0][1] == 1.0  # ties go to the first model in the catalog
     assert sel.series["const"].models[0][0] == "naive"
+
+
+def test_blend_mixes_the_own_choice_with_the_common_mix():
+    from gts_forecaster.selection import common_mix
+
+    r = _backtest()
+    models = _models()
+    scores_by_id = {u: g for u, g in r.scores.groupby("unique_id")}
+    common = common_mix(scores_by_id, models, 1)
+    assert len(common) == 1 and common[0] in models
+    own = select_models(r, models, top_n=1, rule="per_series").series
+    blend = select_models(r, models, top_n=1, rule="blend", blend_share=0.5).series
+    for uid in ("linear", "const"):
+        weights = dict(blend[uid].models)
+        assert abs(sum(weights.values()) - 1) < 1e-9
+        (own_name, _), = own[uid].models
+        if own_name == common[0]:
+            assert weights == {own_name: 1.0}  # own and common agree: nothing changes
+        else:
+            assert weights == {own_name: 0.5, common[0]: 0.5}
+    # short series keep their fixed ensemble
+    assert blend["short"].models == own["short"].models
+
+
+def test_blend_share_and_rule_are_validated():
+    from gts_forecaster.selection import SelectionError
+
+    for kwargs in ({"rule": "magic"}, {"blend_share": 0}, {"blend_share": 1.0}):
+        with pytest.raises(SelectionError):
+            select_models(_backtest(), _models(), top_n=1, **kwargs)
+    assert load_config({"frequency": "monthly"}).selection_rule == "blend"
+    for bad in ({"selection_rule": "magic"}, {"blend_share": 1.5}, {"blend_share": True}):
+        with pytest.raises(Exception, match="selection_rule|blend_share"):
+            load_config({"frequency": "monthly", **bad})
 
 
 def test_top_n_builds_weighted_ensemble():

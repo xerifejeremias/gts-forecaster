@@ -46,7 +46,22 @@ sets:
   # Global models: identify which market, product category and company a series belongs to, plus
   # statistics of the group it belongs to. Needs `static_columns` in default.yaml.
   # (Edit the column names and code lengths to your own data.)
+  # Market / product / company features for global models, whatever the static columns are called
+  # (static_columns in default.yaml): `all` = every static column, `by: each` = one group per column.
   global_static:
+    calendar: all
+    fourier_order: 2
+    static:
+      identifiers: all
+      encoding: ordinal            # ordinal (one integer code per category) | onehot (one 0/1 column each)
+      group_stats:
+        by: each                   # or a list; a list inside the list is a combination, e.g. [market, product]
+        stats: [mean, rel_level, n_series]   # mean median std n_series rel_level growth
+      series_stats: [mean, std, trend, season_strength]   # mean std cv length trend zero_share season_strength
+
+  # Example for structured codes (the synthetic data's market/product columns). Not used by any model;
+  # copy into a set and adapt the column names to use it.
+  global_static_codes_example:
     calendar: all
     fourier_order: 2
     static:
@@ -55,9 +70,8 @@ sets:
         market: [2]
         product: [1, 3]
       identifiers: [market, product, company, product_p1]
-      encoding: ordinal            # ordinal (one integer code per category) | onehot (one 0/1 column each)
+      encoding: ordinal
       group_stats:
-        # a group is every series that shares the value(s); a list means the combination
         by: [market, product, company, product_p1, [market, product_p1]]
-        stats: [mean, rel_level, n_series]   # mean median std n_series rel_level growth
-      series_stats: [mean, std, trend, season_strength]   # mean std cv length trend zero_share season_strength
+        stats: [mean, rel_level, n_series]
+      series_stats: [mean, std, trend, season_strength]
