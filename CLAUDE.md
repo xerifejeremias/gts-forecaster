@@ -26,6 +26,8 @@ poetry run ruff format src tests                # format
 
 Pipeline entry points (all take `--frequency yearly|monthly|weekly|daily`; README has the full flags):
 `validate-input`, `backtest`, `train`, `forecast`, `report`, `run-pipeline`, `benchmark`.
+Automatic runs: `schedule show|install|remove` and `scheduled-run --frequency f --job forecast|backtest`
+(`config/schedule.yaml`, package `ops/`; README "Automatic runs").
 
 Fast feedback while developing a model or a feature:
 `poetry run backtest --frequency monthly --max-series 8 --models lightgbm ridge` — a partial run,

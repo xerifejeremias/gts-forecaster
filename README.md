@@ -237,6 +237,28 @@ poetry run backtest --frequency monthly --exclude-models chronos2 --on-model-err
 
 Run settings live in `config/default.yaml`; frequency specific settings in `config/frequency_profiles.yaml`.
 
+## Automatic runs
+
+`config/schedule.yaml` says, per data frequency, how often each job runs:
+
+- **forecast** (forecast + HTML report, always together): `every: day`, `every: week` (with `weekday`) or
+  `every: month` (with `day`), at a `time`.
+- **backtest** (the full pipeline: backtest, new model selection, forecast, report): `every_months: 3` (or 6...).
+
+```
+poetry run schedule show       # the jobs and the exact Windows Task Scheduler commands
+poetry run schedule install    # create / update the tasks (folder "GTS Forecaster" in Task Scheduler)
+poetry run schedule remove     # delete them
+poetry run scheduled-run --frequency monthly --job forecast   # run one job now, as the scheduler would
+```
+
+Each task runs `scripts\scheduled_run.bat` (output appended to `runs\scheduler.log`). After the job: old run
+folders and backtest files are deleted (`keep_runs`, `keep_backtests`; the newest run and the backtest named in
+the selection are always kept), the report is copied to `report_copy_dir` if set (e.g. a OneDrive folder),
+`runs\<frequency>\last_job.json` records the outcome, and an alert goes to `runs\alerts.log` (and optionally
+e-mail / a Teams or Slack webhook, see `alerts:`) when a step failed or forecasts were flagged. The laptop
+must be on at the scheduled time; Windows runs a missed task when it is next on.
+
 ## Test
 
 ```

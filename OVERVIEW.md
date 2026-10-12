@@ -805,6 +805,36 @@ known promotions yet, maybe prices and planned price increases later. Built:
 - Still to check with the real file: date convention (month start vs month end), the scale (benchmark), and
   whether the static feature statistics make sense for the real codes.
 
+## Automatic runs (built 2026-10-12)
+
+Decided by the user: forecasting and reporting run together, as often as daily, weekly or monthly (it must
+be configurable); backtests every 3 or 6 months. Built (package `src/gts_forecaster/ops/`, config
+`config/schedule.yaml`):
+- `schedule.py`: reads schedule.yaml (per frequency: `forecast: {every: day|week|month, weekday, day, time}`,
+  `backtest: {every_months, day, time}`, optional `horizon`; `keep_runs`, `keep_backtests`, `report_copy_dir`,
+  `alerts`) and builds Windows Task Scheduler tasks in the folder "GTS Forecaster" (`schtasks /Create /F`;
+  monthly backtests use `/SC MONTHLY /MO n`). CLI `schedule show | install | remove`. Shipped: monthly
+  forecast on day 3 at 06:00 with horizon 18, monthly backtest every 3 months on day 1 at 02:00; weekly and
+  daily as commented examples. **Decided by the user (2026-10-12): do not install the tasks for now; jobs run
+  only when the user asks** (`poetry run scheduled-run --frequency f --job forecast|backtest`); no scheduled
+  Claude task to republish the phone link either.
+- `jobs.py` (CLI `scheduled-run --frequency f --job forecast|backtest`, run by `scripts/scheduled_run.bat`,
+  which logs to `runs/scheduler.log`): forecast job = run-pipeline steps forecast + report; backtest job = all
+  steps. Then copy the report to `report_copy_dir` (if set), clean up, write `runs/<frequency>/last_job.json`,
+  alert. Exit code 0 / 1 (2 for a configuration error).
+- `housekeeping.py`: keeps the `keep_runs` newest run folders (default 36; earlier runs feed the Live
+  accuracy view) and never the one in latest.txt; keeps the `keep_backtests` newest backtests (default 4;
+  forecasts/timings/outliers/failures files share a stamp) plus those named in selection_fast.json /
+  selection.json.
+- `alerts.py`: always `runs/alerts.log`; optional SMTP e-mail (STARTTLS, password from `smtp_password_env`)
+  and a Teams/Slack webhook (URL from `webhook_env`); off by default; a failed e-mail/webhook is logged and
+  never fails the job. Alerts on a failed step (`on_failure`) and on flagged forecasts (`on_flags`).
+- Checked: the monthly forecast job through the .bat (as the scheduler runs it): ok in ~70 s; the clean-up
+  deleted 7 old monthly backtests from the experiments and kept the selected ones. Tests: tests/unit/test_ops.py.
+- Not automatic: publishing the report to the claude.ai artifact (the phone link) needs Claude. Options: a
+  `report_copy_dir` in OneDrive/SharePoint (note: phone file viewers may not run the report's JavaScript), or
+  a scheduled Claude task that republishes the artifact after the forecast job.
+
 ## Next steps (updated 2026-10-11)
 
 1. **Timing at the real scale:** `poetry run benchmark --frequency <f> --series <real number>`. Daily

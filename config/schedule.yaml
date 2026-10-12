@@ -1,0 +1,46 @@
+# Automatic runs (Windows Task Scheduler). Show the tasks:   poetry run schedule show
+#                                           Create them:      poetry run schedule install
+#                                           Delete them:      poetry run schedule remove
+# One entry per data frequency that should run on its own (yearly, monthly, weekly, daily).
+#   forecast  the forecast and the HTML report (they always run together), as often as you want:
+#               every: day    time: "06:00"
+#               every: week   weekday: MON        time: "06:00"     (MON TUE WED THU FRI SAT SUN)
+#               every: month  day: 3              time: "06:00"     (day 1-28)
+#   backtest  the full pipeline (backtest, new model selection, forecast, report), every few months:
+#               every_months: 3   day: 1   time: "02:00"
+#   horizon   optional: forecast horizon for this frequency (default: config/default.yaml / the profile)
+# A job that is not listed does not run. The laptop must be on (and not asleep) at the given time;
+# Windows runs a missed task when the computer is next on.
+jobs:
+  monthly:
+    horizon: 18
+    forecast: {every: month, day: 3, time: "06:00"}
+    backtest: {every_months: 3, day: 1, time: "02:00"}
+  # weekly:
+  #   forecast: {every: week, weekday: MON, time: "06:00"}
+  #   backtest: {every_months: 3, day: 1, time: "03:00"}
+  # daily:
+  #   forecast: {every: day, time: "05:00"}
+  #   backtest: {every_months: 6, day: 1, time: "01:00"}
+
+# Clean-up after every job: run folders (runs/<frequency>/) and backtest files (backtesting/<frequency>/)
+# kept per frequency. The newest run and the backtest named in the current selections are never deleted.
+# Earlier runs feed the report's Live accuracy view, so keep enough of them (36 = 3 years of monthly runs).
+keep_runs: 36
+keep_backtests: 4
+
+# Optional: a folder that gets a copy of every new report (e.g. a OneDrive or SharePoint folder).
+# The file is <frequency>_forecast_report.html. null = no copy.
+report_copy_dir: null
+
+# Alerts: always appended to runs/alerts.log. Optionally also by e-mail and/or to a chat webhook.
+alerts:
+  on_failure: true            # a step of the job failed
+  on_flags: true              # the forecast checks flagged series (see forecast_checks.csv)
+  email_to: null              # e.g. [you@company.com]
+  email_from: null
+  smtp_host: null             # e.g. smtp.office365.com
+  smtp_port: 587              # STARTTLS
+  smtp_user: null
+  smtp_password_env: GTS_SMTP_PASSWORD   # environment variable with the SMTP password
+  webhook_env: null           # environment variable with a Teams / Slack incoming-webhook URL

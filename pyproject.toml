@@ -60,6 +60,8 @@ train = "gts_forecaster.pipelines.train:main"
 report = "gts_forecaster.pipelines.report:main"
 run-pipeline = "gts_forecaster.pipelines.run:main"
 benchmark = "gts_forecaster.benchmark:main"
+scheduled-run = "gts_forecaster.ops.jobs:main"
+schedule = "gts_forecaster.ops.schedule:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
