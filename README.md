@@ -189,6 +189,32 @@ Forecast tab.
 - Live data builds up over time: only runs made with `run-pipeline` are kept, and only dates whose
   actuals are in the input file count. `--no-accuracy` leaves the tab out.
 
+### Models tab in the report
+
+A third tab, **Models**, compares the candidate models. It uses the same filters and single-series
+switch.
+
+- One row per model: its backtest error for the current selection (total of the selected series, or
+  the single series; metric buttons as in Accuracy), its mean run time per backtest fold (fit +
+  predict, the same for every selection), and how many selected series use it in their final forecast
+  (in single-series mode: its weight). The final forecast is the reference row at the top.
+- Click a column header to sort; click it again to reverse. Colours show each model's place among the
+  models (green = best / fastest, red = worst / slowest), so you can see at a glance whether the slow
+  models are also the good ones.
+- **Models not used** (bottom, over all series): models never in the top 3 of any series and not in
+  any final forecast (candidates to remove from `config/models.yaml`, with the time they cost per
+  fold), models only used through the blend rule's common mix, and models that did not run.
+- Needs the backtest's timings file (`backtesting/<frequency>/backtest_timings_*.csv`) and
+  `registry/<frequency>/backtest_scores(_fast).csv`; without them the columns or the list stay empty.
+
+### FAQ tab in the report
+
+A fourth tab, **FAQ**, answers technical questions about the method: input assumptions and missing data,
+outliers, features and leakage, the model families and why they are there, backtest and selection rules,
+forecast output, code design, and known limitations. The answers quote this run's settings (and start
+with a table of them), name the module behind each rule, and can be searched. When a decision changes,
+update its answer in `src/gts_forecaster/report/template.html`.
+
 ### Fast and full selections
 
 One backtest scores every model and writes two selections to `registry/<frequency>/`:

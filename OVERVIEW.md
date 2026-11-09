@@ -140,7 +140,7 @@ For each cutoff: fit all eligible candidates, predict the horizon, score each ag
 
 ### Short series
 
-Series too short to backtest or to support local models use a fixed ensemble: **two naive models plus a global model**. **Built so far:** a series with no `naive` fold (too little history to backtest) gets the first `short_series_n` (default 2) models of `short_series_models` (default naive, seasonal_naive, drift) that it has enough data for, equally weighted; the global model is added when global models exist. Seasonal naive needs at least one full season of data (and is left out for yearly data, season length 1); where a series is shorter than that, the second naive model is a simple alternative (to be decided when building, for example drift).
+Series too short to backtest or to support local models use a fixed ensemble: **two naive models plus a global model**. **Built so far:** a series with no `naive` fold (too little history to backtest) gets the first `short_series_n` (default 2) models of `short_series_models` (default naive, seasonal_naive, drift) that it has enough data for, equally weighted. (Planned but not built: adding a global model to it; checked in the code 2026-11-09.) Seasonal naive needs at least one full season of data (and is left out for yearly data, season length 1); where a series is shorter than that, the second naive model is a simple alternative (to be decided when building, for example drift).
 
 ### Registry (saved selection)
 
@@ -364,6 +364,60 @@ Requested by the user: metric buttons, model multi-select, Actuals vs Forecast c
 - Caveat shown in the page: in the backtest the final forecast uses the current selection, chosen on the same folds, so it looks better than it will live.
 - Tests: `tests/unit/test_report_accuracy.py`; the JS was checked in a headless browser (desktop and phone width, all buttons) with simulated earlier runs; `scripts/check_report_in_browser.py` now also clicks through the Accuracy tab.
 
+## Models tab of the report (built 2026-11-08, requested by the user)
+
+Requested: one page with every model, its performance (following the filters: total of a selection or a
+single series) and its mean run time (the same for every selection); sortable by clicking the headers (both
+directions); a colour gradient for performance and for run time, so that when sorted by performance you can
+see where the slow models sit; at the bottom a warning listing models that are never in the top 3 of any
+series, so they could be removed.
+
+- Data (`report/models.py`, payload key `model_summary`, built by `pipelines/report._model_summary`):
+  `{top_n, has_ranks, timings_file, models: [{name, seconds, fit_seconds, predict_seconds, n_folds, n_series,
+  status, top_n_series, used_series}]}`. `seconds` = mean fit + predict per backtest fold (status ok) from the
+  timings file with the same stamp as the backtest forecasts file (`timings_file_for`); `top_n_series` = series
+  where the model's `rank` in `backtest_scores(_fast).csv` (the file matching the selection used) is <= the
+  selection's `top_n`; `used_series` = series whose selection entry contains the model. Candidates = the
+  selection's `meta.models` plus any model in the scores or timings (the `ensemble` row is left out).
+- Page (`template.html`, tab "Models"): the performance is computed in the browser from the Accuracy tab's
+  backtest rows (all folds, native period): actuals and forecasts summed per fold and date over the selected
+  series, then the metric (same buttons, shared with Accuracy). **Unlike the Accuracy tab, each model is scored
+  only on the values it has a forecast for** (no substitution by the final forecast), and the cell says
+  "x% of values" when coverage is below 100%. The final forecast is a reference row on top. Colours are by rank
+  among the models (green best/fastest -> none -> red worst/slowest; Bias by distance from 0), so one extreme
+  model does not flatten the rest. Last column: selected series using the model (single series: its weight).
+- "Models not used" (always over all series): never in a top N and not used (can go: total time saved per
+  fold shown); never in a top N but used via the blend rule's common mix (removing changes the forecasts);
+  did not run. `naive` is marked as the reference model to keep.
+- On the synthetic monthly data (2026-11-08): 10 models never in any top 3 (auto_arima, ets_damped,
+  ets_no_trend, theta_dynamic, lightgbm_static, lgbm_shallow, lgbm_l1, lgbm_tweedie, xgb_shallow, rf_shallow),
+  about 16 s per fold. Not removed: pruning waits for real data (see Next steps 4b).
+- Tests: `tests/unit/test_report_models.py`; `scripts/check_report_in_browser.py` now clicks every metric and
+  sort on the Models tab (screenshots 6-8).
+
+## FAQ tab of the report (built 2026-11-09, requested by the user)
+
+Requested: a page that works as a FAQ for technical readers (data scientists): assumptions of the models,
+of the data treatment and preprocessing, of the outlier handling, the models used and why, and the code's
+design decisions, taken from a scan of the code, the configs and the .md / .html files.
+- Content is static HTML in `template.html` (section `tabFaq`): 38 questions in 9 sections (settings; input
+  data and preprocessing; outliers; features and leakage; models; backtest and selection; forecast and
+  output; code design and reproducibility; known limitations). Each answer names its module. Search box
+  (every typed word must match; matching questions open), expand/collapse all, section links. The filters
+  panel is hidden on this tab.
+- **Keep it true:** the answers restate decisions recorded in this file. When a decision changes (a
+  setting's default, a model family, a rule), update the matching FAQ answer in the template too.
+- Live values: `<span class="sv" data-s="key">default</span>` in the text is replaced by the run's value
+  from the payload key `settings` (`report/settings.run_settings`: whitelisted modelling settings plus the
+  profile's season length / minimum length / pandas freq and the selection's meta; no paths, no SQL query or
+  connection). The horizon is the forecast's real length (the report command may run without the forecast's
+  `--horizon`), and a null `backtest_step` shows the selection's horizon. The first question is a table of
+  all these settings.
+- Corrected against the code while writing (not as in older text above): the short-series ensemble has no
+  global model (only the first `short_series_n` of `short_series_models`).
+- Tests: `tests/unit/test_report_settings.py`; `scripts/check_report_in_browser.py` searches and opens the
+  FAQ (screenshots 9-11).
+
 ## Timing benchmark (built 2026-10-06)
 
 `poetry run benchmark --frequency <f> --series <N> [--history H] [--sizes 20 80] [--no-fast-only]` (`src/gts_forecaster/benchmark.py`). Builds synthetic series (trend, seasonality, noise; the configured explanatory and static columns; ids `bench-NNNNNN`), builds the models from models.yaml exactly like the pipelines (so the catalog filters and fast_only apply), and for each model does an untimed warm-up on 2 series (library import, Chronos weight download), then times fit and predict on each sample size. The time is extrapolated linearly (fixed cost + cost per series) to N: backtest = n_folds × (fit + predict); forecast refit = fit + predict; forecast frozen = predict only for models with `supports_update`, otherwise refit. Prints a per-model table (minutes) and totals for the fast models and all models; writes `benchmarks/benchmark_<f>_<time>.csv`. A failing model is recorded (status failed) and the rest continue; `--max-seconds` stops a model after the small sample. Purpose: decide on the laptop, before the first real backtest, which models are affordable at the real scale (daily data with many series is the concern: per-series StatsForecast and Chronos on CPU). Tests: `tests/unit/test_benchmark.py`. The estimates were only checked with stand-in libraries in the sandbox.
@@ -386,6 +440,8 @@ Requested by the user: metric buttons, model multi-select, Actuals vs Forecast c
 - **History slider** under the x axis: drag right to show less history, left for more; the y axis rescales to the visible data; "Show all history" resets. The time axis also starts at the series' first value.
 
 **Accuracy tab:** see "Accuracy tab of the report" (payload key `accuracy`).
+**Models tab:** see "Models tab of the report" (payload key `model_summary`).
+**FAQ tab:** see "FAQ tab of the report" (payload key `settings`).
 
 **Data contract (`forecast_report_data.json`).** `{meta: {frequency, horizon, cutoff, generated, metric, forecast_mode, dimensions, n_series, n_fallback, model_names}, dates: [ISO dates, history then forecast], n_history, series: [{id, dims: {market, ...}, hist: [value|null per history date], fc: [final forecast per forecast date], models: [{name, weight}], fallback, model_fc: {model: [values]}}]}`. NaN is written as null. A future web app should read this file instead of re-deriving anything.
 

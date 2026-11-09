@@ -7,7 +7,8 @@ The report's JavaScript has no unit tests, so run this after changing report/tem
 
 It prints any JavaScript error and whether the page scrolls sideways at phone width.
 Screenshots: desktop (all series), filtered single series with every model line, phone width,
-and the Accuracy tab (desktop and phone) after clicking through every metric, period and grouping.
+and the Accuracy tab (desktop and phone) after clicking through every metric, period and grouping,
+and the Models tab (single series, total, phone) after every metric and sort.
 """
 
 from __future__ import annotations
@@ -47,12 +48,41 @@ def main(report: str, out_dir: str) -> int:
         # Accuracy tab: every metric, period and grouping once
         page.set_viewport_size({"width": 1100, "height": 900})
         page.click("[data-tab=accuracy]")
-        for selector in ("#accMetric button", "#accPeriod button", "#accGroup button", "#accSource button:not([disabled])"):
+        for selector in ("#accMetric button", "#accPeriod button", "#accGroup button",
+                         "#accSource button:not([disabled])"):
             for k in range(page.locator(selector).count()):
                 page.locator(selector).nth(k).click()
         page.screenshot(path=out / "4_accuracy.png", full_page=True)
         page.set_viewport_size({"width": 390, "height": 800})
         page.screenshot(path=out / "5_accuracy_phone.png", full_page=True)
+        sideways = sideways or page.evaluate(
+            "document.documentElement.scrollWidth > document.documentElement.clientWidth"
+        )
+        # Models tab: every metric, every sort (both directions), single series and total
+        page.set_viewport_size({"width": 1100, "height": 900})
+        page.click("[data-tab=models]")
+        for k in range(page.locator("#modMetric button").count()):
+            page.locator("#modMetric button").nth(k).click()
+        for key in ("name", "used", "time", "time", "perf"):
+            page.click(f"#modTableWrap th button[data-sort={key}]")
+        page.screenshot(path=out / "6_models_series.png", full_page=True)
+        page.click("[data-mode=aggregate]")
+        page.screenshot(path=out / "7_models_total.png", full_page=True)
+        page.set_viewport_size({"width": 390, "height": 800})
+        page.screenshot(path=out / "8_models_phone.png", full_page=True)
+        sideways = sideways or page.evaluate(
+            "document.documentElement.scrollWidth > document.documentElement.clientWidth"
+        )
+        # FAQ tab: search, open everything, phone width
+        page.set_viewport_size({"width": 1100, "height": 900})
+        page.click("[data-tab=faq]")
+        page.fill("#faqSearch", "outlier")
+        page.screenshot(path=out / "9_faq_search.png", full_page=True)
+        page.fill("#faqSearch", "")
+        page.click("#faqOpen")
+        page.screenshot(path=out / "10_faq_open.png", full_page=True)
+        page.set_viewport_size({"width": 390, "height": 800})
+        page.screenshot(path=out / "11_faq_phone.png", full_page=True)
         sideways = sideways or page.evaluate(
             "document.documentElement.scrollWidth > document.documentElement.clientWidth"
         )

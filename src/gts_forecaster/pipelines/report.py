@@ -23,9 +23,11 @@ from gts_forecaster.config import ConfigError, load_config
 from gts_forecaster.contracts.errors import DataContractError
 from gts_forecaster.forecast_checks import CHECKS_FILE
 from gts_forecaster.io.loaders import load_input
-from gts_forecaster.registry import registry_path, selection_file
+from gts_forecaster.registry import registry_path, scores_file, selection_file
 from gts_forecaster.report.accuracy import backtest_rows, encode, live_rows, newest_backtest_file
 from gts_forecaster.report.data import build_report_data
+from gts_forecaster.report.models import model_summary, timings_file_for
+from gts_forecaster.report.settings import run_settings
 from gts_forecaster.report.render import write_report
 
 logger = logging.getLogger(__name__)
@@ -93,6 +95,8 @@ def run_report_pipeline(
     )
     if accuracy:
         data["accuracy"] = _accuracy_data(config, selection, history, [s["id"] for s in data["series"]])
+    data["model_summary"] = _model_summary(config, selection)
+    data["settings"] = run_settings(config, selection, horizon=len(data["dates"]) - data["n_history"])
     html_path, json_path = folder / REPORT_FILE, folder / REPORT_DATA_FILE
     write_report(data, html_path, json_path)
     return ReportOutput(html_path, json_path, len(data["series"]))
@@ -118,6 +122,23 @@ def _accuracy_data(config, selection, history, series_ids):
     if encoded is not None:
         encoded["backtest_file"] = backtest_file.name if backtest_file is not None else None
     return encoded
+
+
+def _model_summary(config, selection):
+    """Run time per model and its use in the selection, for the Models tab (None if no data)."""
+    registry = registry_path(config.registry_dir, config.frequency)
+    scores_path = registry / scores_file(config.fast_only)
+    scores = pd.read_csv(scores_path, dtype={"uuid": str}) if scores_path.is_file() else None
+    timings_path = timings_file_for(
+        newest_backtest_file(registry_path(config.backtesting_dir, config.frequency), selection)
+    )
+    timings = pd.read_csv(timings_path) if timings_path is not None else None
+    if timings is None:
+        logger.warning("models view: no backtest timings found; run times will be missing")
+    summary = model_summary(selection, scores, timings)
+    if summary is not None:
+        summary["timings_file"] = timings_path.name if timings_path is not None else None
+    return summary
 
 
 def main(argv: list[str] | None = None) -> int:

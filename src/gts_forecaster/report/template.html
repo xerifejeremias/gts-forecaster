@@ -21,6 +21,7 @@
   --chip: #efeee9;
   --m1: #1baf7a; --m2: #eda100; --m3: #e87ba4; --m4: #008300; --m5: #4a3aa7; --m6: #e34948;
   --warn: #9a5b00; --warn-bg: rgba(237, 161, 0, 0.15);
+  --good: #1baf7a; --bad: #e34948;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -30,6 +31,7 @@
     --fc-bg: rgba(217, 89, 38, 0.14); --focus: #3987e5; --chip: #262624;
     --m1: #199e70; --m2: #c98500; --m3: #d55181; --m4: #008300; --m5: #9085e9; --m6: #e66767;
     --warn: #f2b84b; --warn-bg: rgba(242, 184, 75, 0.14);
+    --good: #199e70; --bad: #e66767;
   }
 }
 :root[data-theme="dark"] {
@@ -39,6 +41,7 @@
   --fc-bg: rgba(217, 89, 38, 0.14); --focus: #3987e5; --chip: #262624;
   --m1: #199e70; --m2: #c98500; --m3: #d55181; --m4: #008300; --m5: #9085e9; --m6: #e66767;
   --warn: #f2b84b; --warn-bg: rgba(242, 184, 75, 0.14);
+  --good: #199e70; --bad: #e66767;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -127,6 +130,51 @@ h3 { font-size: 14px; margin: 18px 0 6px; }
 .acc-table tr.total td { background: var(--chip); font-weight: 600; }
 .acc-table th { cursor: default; }
 .seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+#modTableWrap { max-height: 640px; }
+.mod-table th button { all: unset; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+.mod-table th button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+.mod-table th .arr { color: var(--ink-3); font-size: 10px; min-width: 8px; }
+.mod-table th[aria-sort] { color: var(--ink); }
+.mod-table tr.total td { background: var(--chip); font-weight: 600; }
+.mod-table td.off { color: var(--ink-3); }
+.mod-table .cov { color: var(--ink-3); font-size: 11px; margin-left: 4px; }
+.scale { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; }
+.scale i { display: inline-block; width: 90px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, color-mix(in srgb, var(--good) 45%, transparent), transparent, color-mix(in srgb, var(--bad) 45%, transparent)); border: 1px solid var(--line); }
+.warnbox { background: var(--warn-bg); border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-top: 8px; }
+.warnbox b { color: var(--warn); }
+.warnbox ul { margin: 4px 0 8px; padding-left: 18px; }
+.warnbox li { margin: 2px 0; overflow-wrap: anywhere; }
+.okbox { background: var(--chip); border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-top: 8px; }
+.faq-tools { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 6px; }
+.faq-tools input[type=search] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-height: 34px; flex: 1 1 240px; min-width: 0; }
+.faq-tools input[type=search]:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.faq-toc { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.faq-toc a { font-size: 12px; color: var(--ink-2); background: var(--chip); border-radius: 999px; padding: 2px 10px; text-decoration: none; }
+.faq-toc a:hover { color: var(--ink); }
+.faq-group h3 { margin-top: 22px; scroll-margin-top: 12px; }
+.faq-group .gsub { color: var(--ink-2); font-size: 12px; margin: -2px 0 6px; }
+details.faq { border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; background: var(--surface); }
+details.faq > summary { cursor: pointer; padding: 9px 12px; font-weight: 600; list-style: none; display: flex; gap: 8px; align-items: baseline; }
+details.faq > summary::-webkit-details-marker { display: none; }
+details.faq > summary::before { content: "\25B8"; color: var(--ink-3); flex: none; }
+details.faq[open] > summary::before { content: "\25BE"; }
+details.faq > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-radius: 8px; }
+details.faq[open] > summary { border-bottom: 1px solid var(--line); }
+.faq .a { padding: 8px 14px 10px 28px; color: var(--ink); overflow-wrap: anywhere; }
+.faq .a p { margin: 6px 0; }
+.faq .a ul, .faq .a ol { margin: 6px 0; padding-left: 20px; }
+.faq .a li { margin: 3px 0; }
+.faq .a table { width: auto; max-width: 100%; margin: 6px 0; font-size: 13px; }
+.faq .a .tw { overflow-x: auto; }
+.faq .a th, .faq .a td { white-space: normal; text-align: left; vertical-align: top; overflow-wrap: normal; min-width: 5.5em; }
+.faq .a td:last-child, .faq .a th:last-child { min-width: 12em; }
+@media (max-width: 520px) { .faq .a { padding-left: 12px; padding-right: 10px; } .faq .a th, .faq .a td { padding: 5px 7px; } }
+.faq .where { color: var(--ink-3); font-size: 12px; margin-top: 8px; }
+code { font: 12.5px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--chip); border-radius: 4px; padding: 0 4px; }
+.sv { font-weight: 600; font-variant-numeric: tabular-nums; }
+.settings-table td:first-child code { white-space: nowrap; }
+.settings-table td { white-space: normal; text-align: left; }
+mark { background: var(--warn-bg); color: inherit; border-radius: 3px; }
 footer { color: var(--ink-3); font-size: 12px; }
 .badge { display: inline-block; font-size: 12px; font-weight: 600; line-height: 1.5; color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 9px; margin-left: 8px; vertical-align: 2px; white-space: nowrap; }
 .flagbox { background: var(--warn-bg); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
@@ -150,9 +198,11 @@ footer { color: var(--ink-3); font-size: 12px; }
   <nav class="tabs" role="tablist" aria-label="Views">
     <button type="button" role="tab" data-tab="forecast" aria-selected="true">Forecast</button>
     <button type="button" role="tab" data-tab="accuracy" aria-selected="false">Accuracy</button>
+    <button type="button" role="tab" data-tab="models" aria-selected="false">Models</button>
+    <button type="button" role="tab" data-tab="faq" aria-selected="false">FAQ</button>
   </nav>
 
-  <section class="panel controls" aria-label="Selection">
+  <section class="panel controls" aria-label="Selection" id="controls">
     <div class="row" id="filters"></div>
     <div class="row">
       <div class="field">
@@ -247,6 +297,361 @@ footer { color: var(--ink-3); font-size: 12px; }
     </div>
   </section>
 
+  <section class="panel" aria-label="Models" id="tabModels" hidden>
+    <div class="head">
+      <div>
+        <h2 id="modTitle">Models</h2>
+        <div class="sub" id="modSub"></div>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <div class="field"><span class="lbl">Metric</span>
+        <div class="seg" id="modMetric"></div>
+      </div>
+      <span class="scale"><span>best / fastest</span><i></i><span>worst / slowest</span></span>
+    </div>
+    <div class="tablewrap" id="modTableWrap"></div>
+    <div class="note" id="modNotes"></div>
+    <h3>Models not used</h3>
+    <div id="modUnused"></div>
+  </section>
+
+  <section class="panel" aria-label="FAQ" id="tabFaq" hidden>
+    <div class="head">
+      <div>
+        <h2>FAQ: methods, assumptions and design decisions</h2>
+        <div class="sub">For data scientists and technical reviewers. Values in <span class="sv">bold</span> are the settings of this report's run; module paths are under <code>src/gts_forecaster/</code>, settings in <code>config/</code>. The full decision log, with dates, is <code>OVERVIEW.md</code> in the project.</div>
+      </div>
+    </div>
+    <div class="faq-tools">
+      <input type="search" id="faqSearch" placeholder="Search the questions and answers (e.g. outlier, leakage, Chronos)" aria-label="Search the FAQ">
+      <button type="button" id="faqOpen">Expand all</button>
+      <button type="button" id="faqClose">Collapse all</button>
+    </div>
+    <div class="note" id="faqCount" style="margin-top:0"></div>
+    <nav class="faq-toc" id="faqToc" aria-label="FAQ sections"></nav>
+
+    <div class="faq-group" data-title="Settings">
+      <h3 id="faq-settings">Settings used for this report</h3>
+      <details class="faq">
+        <summary>Which settings produced the numbers in this report?</summary>
+        <div class="a"><div class="tw" id="faqSettings"></div>
+          <p class="where">The forecast uses the selection made by the last backtest; where its settings differ from this run's (e.g. the metric or <code>top_n</code>), the selection's values decided which models are used. Where: <code>config/default.yaml</code>, <code>config/frequency_profiles.yaml</code>, <code>registry/&lt;frequency&gt;/selection*.json</code> (meta).</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-group" data-title="Data and preprocessing">
+      <h3 id="faq-data">Input data and preprocessing</h3>
+      <details class="faq">
+        <summary>What does the pipeline assume about the input data, and what is checked?</summary>
+        <div class="a">
+          <p>Long format: one row per series and date, with an id, a date, a numeric target, the configured explanatory columns and optional static (identifier) columns. A strict contract runs right after loading (pandera + plain pandas) and <b>stops the run with nothing written</b> on any breach:</p>
+          <ul>
+            <li>exactly the expected columns (extra columns are dropped and logged by default, <code>extra_columns: ignore</code>); numeric target and explanatory columns; dates without time zone; no nulls in id or date; no infinite values;</li>
+            <li>no duplicated (id, date) rows; dates aligned to the frequency (pandas <code><span class="sv" data-s="pandas_freq">MS</span></code>);</li>
+            <li>static columns are text with exactly one non-empty value per series (codes like <code>0042</code> keep their zeros).</li>
+          </ul>
+          <p>Input names are mapped to <code>uuid, date, target</code> (<code>input_columns</code>), and right after the contract renamed to the Nixtla convention <code>unique_id, ds, y</code>, used everywhere downstream. Inputs can be CSV, Parquet or a SQL query (SQLAlchemy URL from an environment variable, so no password is stored in the config).</p>
+          <p class="where">Where: <code>contracts/input_schema.py</code>, <code>contracts/static_checks.py</code>, <code>contracts/frequency_checks.py</code>, <code>io/loaders.py</code>, <code>columns.py</code>.</p>
+        </div>
+      </details>
+      <details class="faq">
+        <summary>How are missing periods and gaps handled?</summary>
+        <div class="a">
+          <p>A period is missing when its row is absent or its target or an explanatory value is null. Rules per run of consecutive missing periods in one series (threshold <code>max_fill_periods</code> = <span class="sv" data-s="max_fill_periods">3</span>):</p>
+          <div class="tw"><table><thead><tr><th>Where the gap is</th><th>Short gap (&le; threshold)</th><th>Longer gap</th></tr></thead><tbody>
+            <tr><td>Inside the series</td><td>linear interpolation</td><td>fallback forecast</td></tr>
+            <tr><td>At the end (series stops early)</td><td>forward fill up to the common cutoff</td><td>fallback forecast</td></tr>
+          </tbody></table></div>
+          <p>Fallback series never reach a model or the backtest; their forecast is the last <i>real</i> observed value (never a filled one) or 0 (<code>fallback</code> = <span class="sv" data-s="fallback">last_value</span>). Filled rows carry an internal <code>is_filled</code> flag: they are <b>never scored</b> in the backtest and never flagged as outliers. The contract is then checked again: no nulls, no gaps, all series end on the same date.</p>
+          <p>Known side effect: interpolation applies to every value column, so a binary explanatory column (e.g. a promo flag) can become 0.5 inside a filled gap.</p>
+          <p class="where">Where: <code>cleaning/missing.py</code>, <code>data_preparation.py</code>.</p>
+        </div>
+      </details>
+      <details class="faq">
+        <summary>Why do all series share one cutoff date?</summary>
+        <div class="a">
+          <p>The forecast origin is the latest date in the data, common to all series: short end-gaps are forward-filled to it, longer ones send the series to the fallback. One origin keeps the horizon dates identical across series, which the platform output, the totals in this report and the global models (one prediction call for all series) rely on. A series that stopped reporting long ago is therefore not forecast by a model, by design.</p>
+          <p class="where">Where: <code>cleaning/missing.py</code>, <code>splitting.forecast_split</code>.</p>
+        </div>
+      </details>
+      <details class="faq">
+        <summary>What happens to very short, brand-new or not-yet-backtested series?</summary>
+        <div class="a">
+          <ul>
+            <li><b>Fewer than <span class="sv" data-s="min_series_length">3</span> observations</b> (<code>min_series_length</code> of the frequency profile): last observed value for the whole horizon, with a warning. Decided 2026-10-11: before, one new product stopped the whole run at the contract.</li>
+            <li><b>Too short to be backtested</b> (no fold in which the reference model <code>naive</code> could be scored): a fixed ensemble of the first <span class="sv" data-s="short_series_n">2</span> models of <code><span class="sv" data-s="short_series_models">naive, seasonal_naive, drift</span></code> that the series has enough data for, equally weighted. Seasonal naive needs one full season, so very short series get naive + drift.</li>
+            <li><b>New since the last backtest</b> (no entry in the selection): the same short-series ensemble, with a warning, until the next backtest (added after the 2026-10-12 code review; before, such a series stopped forecast and train).</li>
+          </ul>
+          <p class="where">Where: <code>cleaning/missing.split_short_series</code>, <code>selection.short_series_choice</code>, <code>selection.add_missing_series</code>.</p>
+        </div>
+      </details>
+      <details class="faq">
+        <summary>What date convention is assumed?</summary>
+        <div class="a"><p>A date marks the <b>start</b> of its period (2024-03-01 = March 2024; weekly dates start a 7-day week). This only matters for the calendar features (days, business days, holidays in the period). If the data stamps period ends, set <code>calendar.period_anchor: end</code> in <code>config/features.yaml</code>. Still to be confirmed against the real data.</p>
+          <p class="where">Where: <code>features/calendar_features.py</code>.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Are negative values allowed?</summary>
+        <div class="a"><p>In the input, yes: real volume data can have restatements or loadings below zero, and they are modelled as they are. The forecasts are not: see "Why are negative forecasts set to 0?". Models that need positive data handle it locally: Tweedie boosting scales each series to 0..1 first, and a multiplicative-season ETS falls back to naive on a series with values &le; 0.</p></div>
+      </details>
+    </div>
+
+    <div class="faq-group" data-title="Outliers">
+      <h3 id="faq-outliers">Outliers</h3>
+      <details class="faq">
+        <summary>How are outliers detected?</summary>
+        <div class="a">
+          <p>Method <code>mad</code> (<code>outlier_method</code> = <span class="sv" data-s="outlier_method">mad</span>), per series, on the target only:</p>
+          <ol>
+            <li><b>Seasonality removed first</b> when the series has at least three full seasons away from its ends: the typical offset of each season position from a rolling-median trend is subtracted, so normal seasonal peaks are not flagged.</li>
+            <li><b>Local reference:</b> each point is compared with the median of its two neighbours on each side, excluding itself. This follows trends and smooth cycles and is not pulled by the outlier itself.</li>
+            <li><b>Robust scale:</b> a point is an outlier when its residual is more than <span class="sv" data-s="outlier_threshold">5</span> robust standard deviations (1.4826 &times; MAD of the residuals) from zero (<code>outlier_threshold</code>). 5 is deliberately high: only severe outliers are touched.</li>
+            <li><b>Iterative passes:</b> only the most extreme point of a cluster of nearby candidates is flagged per pass; after replacing it the series is scored again, so the neighbours of one huge spike are not flagged too.</li>
+          </ol>
+          <p>Validation on synthetic data: no false positives on yearly/monthly, 2-3 points on weekly/daily; injected 6-sigma spikes were found in 87-98% of cases.</p>
+          <p class="where">Where: <code>cleaning/outliers.py</code>.</p>
+        </div>
+      </details>
+      <details class="faq">
+        <summary>What is done with a flagged point, and why clip by default?</summary>
+        <div class="a">
+          <p><code>outlier_action</code> = <span class="sv" data-s="outlier_action">clip</span>. Options:</p>
+          <ul>
+            <li><b>clip</b> (default): the value is moved to the threshold bound it crossed (expected value &plusmn; threshold &times; robust spread). A very high value stays high, just no longer extreme. Rationale: in volume data a spike is usually a real event (promotion, stock-up), not an error, so removing it entirely would bias the level down; clipping keeps the direction but limits its leverage on the fit.</li>
+            <li><b>interpolate</b>: linear between the nearest unflagged neighbours (treats the point as an error).</li>
+            <li><b>median</b> / <b>mean</b> of the series' unflagged values.</li>
+          </ul>
+          <p>The replacement keeps the series regular (no gaps), which every model needs.</p>
+        </div>
+      </details>
+      <details class="faq">
+        <summary>Which safeguards stop the outlier step from damaging a series?</summary>
+        <div class="a"><ul>
+          <li>The first and last two points are never flagged: at the edges a recent jump cannot be told apart from a level change, and the last points matter most for the forecast.</li>
+          <li>Periods filled by the missing-data step are never flagged.</li>
+          <li>Series with fewer than 8 observations are left alone.</li>
+          <li>If more than <span class="sv" data-s="outlier_max_share">10%</span> of a series would be flagged (<code>outlier_max_share</code>), the series is left unchanged with a warning: that pattern is a level shift or a regime change, not outliers.</li>
+        </ul></div>
+      </details>
+      <details class="faq">
+        <summary>Is outlier cleaning a source of leakage? Are the test windows cleaned?</summary>
+        <div class="a"><p>No and no. Cleaning runs on <b>training data only</b>, separately inside every backtest fold using only that fold's history, and once more on the full history for the forecast. Test windows are <b>scored against the raw actuals</b> (decided at design time): a model is judged on what really happened, spikes included. The forecast sanity check reuses the same robust scale (see "Forecast checks").</p>
+          <p class="where">Reviewable output: <code>backtesting/&lt;f&gt;/backtest_outliers_*.csv</code> (per fold) and <code>outputs/&lt;f&gt;/outliers.csv</code> (forecast run), columns <code>uuid, ds, y_raw, y_clean, score</code>.</p></div>
+      </details>
+    </div>
+
+    <div class="faq-group" data-title="Features and leakage">
+      <h3 id="faq-features">Features and leakage</h3>
+      <details class="faq">
+        <summary>Which features do the models use?</summary>
+        <div class="a">
+          <p>Features are <b>opt-in per model</b>. Statistical models (StatsForecast), Chronos and Prophet/Orbit build what they need themselves. The MLForecast models (LightGBM, XGBoost, random forest, ridge, lasso) get:</p>
+          <ul>
+            <li><b>Target lags and rolling statistics</b> built by MLForecast. Default lags 1, 2, 3 and one season; rolling mean and std over 3 and one season. Per frequency (decided 2026-10-11 from a backtest of the default vs a denser short-term set, adopted only where it clearly won): daily lags 1-7, 14, 21, 28 and windows 7, 28 (all ML models, 6-16% better); yearly trees lags 1-5, windows 3, 5. Season length here: <span class="sv" data-s="season_length">12</span>.</li>
+            <li><b>Calendar features</b> (known for any future date): days and business days in the period, holidays, weekday counts, month, quarter, week of year, Fourier terms (order 2) of the yearly cycle (and weekly for daily data).</li>
+            <li><b>Static features</b> for the <code>*_static</code> models: ordinal codes of each identifier column, group statistics (mean, relative level, number of series per group) and series descriptors (mean, std, trend, seasonal strength).</li>
+            <li><b>Target scaling</b> per series before training (<code>local_standard</code>), so one global model can serve series of very different levels; Tweedie settings use <code>local_minmax</code> because Tweedie needs a non-negative target.</li>
+          </ul>
+          <p>A series needs <code>max(largest lag, longest window + 1) + 3</code> observations for an ML model (monthly default 16).</p>
+          <p class="where">Where: <code>models/mlforecast_adapter.py</code>, <code>features/</code>, <code>config/features.yaml</code>, <code>ml_features</code> in <code>config/frequency_profiles.yaml</code>.</p>
+        </div>
+      </details>
+      <details class="faq">
+        <summary>How is look-ahead leakage prevented?</summary>
+        <div class="a"><ul>
+          <li><b>One place decides train vs test:</b> <code>splitting.py</code>. Everything downstream is a function of the cutoff: outlier cleaning, feature building, static group statistics and target scaling are all computed inside each fold from that fold's history only.</li>
+          <li><b>Multi-step forecasts:</b> MLForecast predicts recursively (each prediction is fed back as the next lag). For feature sets used by direct models, <code>usable_at_step(h)</code> keeps only features known at step h (a lag k is only usable when k &ge; h); unknown ones are NaN. A test checks that the future features equal the history features wherever they are known, and that a row never sees its own value.</li>
+          <li><b>Explanatory variables:</b> only columns declared as known in the future are used (next question). In the backtest the actual values of those columns in the test window are used, since by definition they are known in advance.</li>
+          <li><b>Static codes</b> come from the full static table (stable integer codes across folds); they carry no target information.</li>
+          <li><b>Chronos</b> is pretrained on public data; production data is private, so test-set contamination through pretraining is not a concern (an explicit assumption of the model choice).</li>
+        </ul></div>
+      </details>
+      <details class="faq">
+        <summary>Are the explanatory variables (price, promotions, ...) used?</summary>
+        <div class="a"><p>Only those whose <b>future values you supply</b>. Default (decided 2026-10-05): none is known in the future, so models work without explanatory variables. Known columns in this run: <span class="sv" data-s="known_future_columns">none</span>. Declaring one (<code>known_future_columns</code> + a future-values file) makes it a regressor for MLForecast, Chronos-2, Prophet and Orbit, in training and forecast. Unknown columns are never used: using them would need forecasting them first, which is out of scope.</p>
+          <p class="where">Where: <code>features/known_future.py</code>.</p></div>
+      </details>
+      <details class="faq">
+        <summary>How are holidays and business days defined?</summary>
+        <div class="a"><p>Weekends are Saturday and Sunday. Holidays are the dates listed in <code>calendar.extra_holidays</code> plus, optionally, a country's public holidays (<code>calendar.holiday_country</code>, needs the <code>holidays</code> extra). The default has no country, so only listed dates count: set the market's country when real data arrives.</p></div>
+      </details>
+    </div>
+
+    <div class="faq-group" data-title="Models">
+      <h3 id="faq-models">Models</h3>
+      <details class="faq">
+        <summary>Which model families are candidates, and why each one?</summary>
+        <div class="a"><div class="tw"><table><thead><tr><th>Family</th><th>Scope</th><th>Why it is in the pool</th></tr></thead><tbody>
+          <tr><td>naive, seasonal naive, drift</td><td>local</td><td>Benchmarks and the reference for selection; robust on very short series; the short-series ensemble.</td></tr>
+          <tr><td>StatsForecast: AutoETS, AutoARIMA, AutoTheta, MSTL (+ fixed ETS/Theta variants)</td><td>local</td><td>Proven classical methods, strong on short and medium series, cheap, interpretable; MSTL for multiple seasonalities.</td></tr>
+          <tr><td>MLForecast: LightGBM, XGBoost, random forest, ridge, lasso</td><td>global</td><td>One model learns across all series (cross-learning), can use static and calendar features and known covariates, and scales to many series.</td></tr>
+          <tr><td>Chronos-2, Chronos-2 small, Chronos-Bolt tiny/small</td><td>zero-shot</td><td>Pretrained foundation models with strong public benchmark results; no training, CPU-friendly; Chronos-2 can use known future covariates.</td></tr>
+          <tr><td>Prophet, Orbit</td><td>local, slow</td><td>Off by default (<code>fast_only</code> = <span class="sv" data-s="fast_only">true</span>). Prophet was tried 2026-10-11: no out-of-sample gain on synthetic data for 11-18% more backtest time; worth one backtest on real data with holidays/promotions. Orbit needs a C++ toolchain on Windows and is not installed.</td></tr>
+        </tbody></table></div>
+          <p>Constraints of the catalog (decided 2026-10-05): CPU only, volume data (no price-specific models), each library an optional install extra. A model whose library is missing is skipped with a warning.</p>
+          <p class="where">Where: <code>config/models.yaml</code>, <code>models/</code>.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Which models were considered and deliberately left out?</summary>
+        <div class="a"><ul>
+          <li>NeuralForecast (NHITS, NBEATS, TFT, PatchTST): want a GPU.</li>
+          <li>TimesFM 3.0: weights under a non-commercial licence; the production use is commercial.</li>
+          <li>TimesFM 2.5, Toto, Moirai-2: pin old NumPy or other versions that conflict with the stack.</li>
+          <li>TiRex: licence to be checked, original version univariate only. Kronos: built for financial candlestick data. TinyTimeMixer, Lag-Llama: weaker benchmark results.</li>
+        </ul><p>Any of them can be added later as an adapter plus a catalog entry.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Why are there so many LightGBM, XGBoost, random forest, ETS and Theta variants?</summary>
+        <div class="a"><p>The user asked for 8-10 boosting settings and 4-5 forests per family (shallow, regularised, deep, L1 loss matched to MAE, Tweedie for volumes, with/without static features, daily lag sets) and fixed ETS/Theta forms (damped, no trend, additive/multiplicative season; standard/optimised/dynamic Theta). <code>skip_frequencies</code> keeps each to the frequencies it suits (e.g. deep trees only on weekly/daily, where there are enough rows).</p>
+          <p><b>Evidence so far:</b> each set wins more series in the backtest but gives no out-of-sample gain on the synthetic data (fair hold-out within &plusmn;1 WAPE point). With 2-3 folds per series, many similar candidates mean some win by luck (selection overfitting). <b>Decided by the user (2026-10-11/12): keep all competing until real data is available, then prune.</b> The Models tab lists models never in any series' top 3 as removal candidates.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Why does AutoARIMA not run on daily data, and fit non-seasonally on weekly data?</summary>
+        <div class="a"><p>Run time. On weekly data, seasonal ARIMA with season 52 had not finished one fold after 24 minutes, so above a season length of 24 AutoARIMA fits a non-seasonal model (AutoETS does the same internally). On daily data AutoARIMA took 61% of the backtest time while in 4 of 55 selections, with the same hold-out accuracy without it (decided 2026-10-11). AutoTheta and its variants use only the last 5 years of daily history for the same reason.</p></div>
+      </details>
+      <details class="faq">
+        <summary>How are the Chronos foundation models used?</summary>
+        <div class="a"><p>Zero-shot: <code>fit</code> only stores the last 1,024 observations per series (<code>max_context</code>) and loads the weights (downloaded once from Hugging Face, cached across folds). The point forecast is the <b>median</b> of the predicted distribution. Chronos-2 receives known future covariates if any are declared; Chronos-Bolt is univariate. Minimum history 5 observations. CPU by default.</p>
+          <p class="where">Where: <code>models/chronos_adapter.py</code>.</p></div>
+      </details>
+      <details class="faq">
+        <summary>What happens when a model fails?</summary>
+        <div class="a"><ul>
+          <li>Backtest: a crashing model is isolated per fold and recorded (<code>backtest_failures_*.csv</code>); the others continue (<code>on_model_error</code> = <span class="sv" data-s="on_model_error">skip</span>; <code>raise</code> stops instead).</li>
+          <li>StatsForecast silently replaces a series it cannot fit with a naive forecast; the adapters log these series (e.g. multiplicative-season ETS on series with values &le; 0).</li>
+          <li>Forecast: if a selected model fails, it is dropped from that series' ensemble and the remaining weights are rescaled; an error is raised only if none is left.</li>
+          <li>Prophet/Orbit failing on every series is treated as a setup problem and stops the run rather than returning last values labelled as the model.</li>
+        </ul></div>
+      </details>
+    </div>
+
+    <div class="faq-group" data-title="Backtest and selection">
+      <h3 id="faq-selection">Backtest and model selection</h3>
+      <details class="faq">
+        <summary>How is the backtest designed?</summary>
+        <div class="a"><ul>
+          <li>Rolling origin with <span class="sv" data-s="n_folds">3</span> folds (<code>n_folds</code>), cutoffs <span class="sv" data-s="backtest_step">12</span> periods apart (<code>backtest_step</code>; default = the horizon, so test windows do not overlap), horizon <span class="sv" data-s="horizon">12</span>.</li>
+          <li>Each fold: a fresh clone of every model, fitted only on series with at least the model's minimum history before the cutoff; early folds therefore cover fewer series (<code>n_folds</code> per series is in <code>backtest_scores.csv</code>).</li>
+          <li>The forecast floor (0) is applied to every model's predictions before scoring, so the scores judge what would really be delivered. Filled periods are not scored.</li>
+          <li>Every backtest writes a new, never-overwritten file of all forecasts vs actuals (<code>backtest_forecasts_*.csv</code>), which feeds the Accuracy and Models tabs.</li>
+        </ul><p class="where">Where: <code>splitting.backtest_splits</code>, <code>evaluation/backtest.py</code>.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Which metric ranks the models, and why?</summary>
+        <div class="a"><p><code>metric</code> = <span class="sv" data-s="metric">mae</span> (options: mae, rmse, mape, smape, wape, mase). Ranking is <b>per series</b>, so a scale-dependent metric such as MAE does not mix levels across series, and it is robust to occasional spikes compared with RMSE. MAPE is undefined at zero actuals (NaN) and asymmetric, which rules it out for volumes that can be zero. MASE scales by the in-sample seasonal-naive error. This report's Accuracy and Models tabs default to WAPE because they compare <i>totals</i> across series, where a scale-free metric is needed.</p>
+          <p class="where">Where: <code>evaluation/metrics.py</code>.</p></div>
+      </details>
+      <details class="faq">
+        <summary>How is the model (or ensemble) chosen for each series?</summary>
+        <div class="a"><ol>
+          <li><b>Reference folds:</b> the folds in which <code>naive</code> (the model needing the least data) was scored. Every model competes only on those folds and must have a valid score on all of them, so no model gains from being scored on easier or fewer folds.</li>
+          <li>Models are ranked by their mean score over those folds (ties go to the model listed first in <code>models.yaml</code>).</li>
+          <li>The best <span class="sv" data-s="top_n">3</span> (<code>top_n</code>) form the series' own mix, weighted <span class="sv" data-s="ensemble_weights">equal</span> (<code>ensemble_weights</code>: equal or inverse error).</li>
+          <li>The final weights follow the selection rule (next question).</li>
+          <li>No model with a valid score: <code>naive</code>.</li>
+        </ol><p>The choice is saved to <code>selection_fast.json</code> / <code>selection.json</code>: human-readable, editable, and an entry with <code>"locked": true</code> survives the next backtest (manual overrides).</p>
+          <p class="where">Where: <code>selection.py</code>, <code>registry.py</code>.</p></div>
+      </details>
+      <details class="faq">
+        <summary>What is the "blend" selection rule, and why is it the default?</summary>
+        <div class="a"><p><code>selection_rule</code> = <span class="sv" data-s="selection_rule">blend</span>, <code>blend_share</code> = <span class="sv" data-s="blend_share">0.5</span>. Each series' final forecast is half its own top-3 mix and half a <b>common mix</b>: the 3 models with the lowest error over all series together (each model's error summed over series, relative to naive's on the same series; a model must cover at least half of the backtested series). Overlapping models add their weights, so an entry holds up to 6 models.</p>
+          <p><b>Why:</b> with 2-3 folds per series the per-series winner is noisy. Seven rules were compared offline on saved backtests with an expanding window (choose on earlier folds, test on the next): per-series top 3 / top 5 / best per family / global shortlist / common mix only / median instead of mean / blend / own mix only if 5% better. The common mix alone was best on average but worse on weekly and hurt more single series; the blend was never worse than the per-series rule. Fair WAPE per_series &rarr; blend: yearly 17.0% &rarr; 15.9%, monthly 13.3% &rarr; 12.8%, weekly 26.5% &rarr; 26.5%, daily 23.9% &rarr; 23.3% (synthetic data). Adopted 2026-10-12.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Why ensembles instead of the single best model?</summary>
+        <div class="a"><p>Averaging cancels part of the individual models' errors and reduces the variance of a noisy per-series choice. In the fair hold-out check (choose on earlier folds, score on the last fold never seen by the choice), the top-3 ensemble beat both naive and the single best model at every frequency:</p>
+          <div class="tw"><table><thead><tr><th>Frequency</th><th>Pipeline</th><th>Best single</th><th>Naive</th></tr></thead><tbody>
+            <tr><td>yearly</td><td>17.5%</td><td>19.3%</td><td>21.9%</td></tr><tr><td>monthly</td><td>12.1%</td><td>12.2%</td><td>17.5%</td></tr>
+            <tr><td>weekly</td><td>24.8%</td><td>25.6%</td><td>31.2%</td></tr><tr><td>daily</td><td>22.8%</td><td>23.2%</td><td>29.1%</td></tr>
+          </tbody></table></div><p>WAPE, synthetic data, 2026-10-11 (before the blend rule). Script: <code>scripts/holdout_check.py</code>.</p></div>
+      </details>
+      <details class="faq">
+        <summary>How much can I trust the backtest accuracy in this report?</summary>
+        <div class="a"><p>The backtest view of the <b>final</b> forecast is optimistic: the selection was chosen on the same folds it is shown on. The individual models' backtest scores are honest out-of-sample numbers, but the best of dozens of candidates on 2-3 folds per series is biased upwards by the selection itself. For an unbiased estimate use <code>scripts/holdout_check.py</code> (replays the selection on earlier folds and scores the last one), and, over time, the Accuracy tab's <b>Live</b> view, which scores forecasts that were really delivered.</p></div>
+      </details>
+      <details class="faq">
+        <summary>What are selection_fast.json and selection.json?</summary>
+        <div class="a"><p>One backtest scores every model once and writes two selections: the best among the fast models only, and the best among all models scored (including Prophet/Orbit if the backtest ran with <code>--no-fast-only</code>). A model's score does not depend on which others compete, so no second backtest is needed. The forecast and this report read the fast one while <code>fast_only</code> is on. A fast-only backtest never overwrites a <code>selection.json</code> in which the slow models really competed.</p></div>
+      </details>
+    </div>
+
+    <div class="faq-group" data-title="Forecast and output">
+      <h3 id="faq-forecast">Forecast and output</h3>
+      <details class="faq">
+        <summary>Are the models refitted for every forecast?</summary>
+        <div class="a"><p><code>forecast_mode</code> = <span class="sv" data-s="forecast_mode">frozen_selection</span>. <b>frozen_selection</b> (default): the selection is kept, the selected models are refitted on the newest data at every run. <b>frozen_models</b>: <code>train</code> saves fitted models; the forecast loads them and passes the newer history without refitting where the model supports it (baselines, MLForecast regressors, Chronos); others are refitted with a warning. On monthly data both modes gave identical forecasts. Known gap: a changed <code>features.yaml</code> is not detected in frozen-models mode.</p>
+          <p>Only the models named in the selection are run (<code>forecast_models</code> = <span class="sv" data-s="forecast_models">selected</span>); <code>all</code> runs every candidate, for the per-model lines of the Forecast tab.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Why are there no prediction intervals?</summary>
+        <div class="a"><p>A decision of the project owners (2026-10-05): the receiving platform takes point forecasts only. Intervals would also need calibration across very different model families and a rule for combining them in an ensemble; none of that is built.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Why are negative forecasts set to 0?</summary>
+        <div class="a"><p>The target is a volume (decided 2026-10-05): <code>forecast_floor</code> = <span class="sv" data-s="forecast_floor">0</span>. The floor is applied to every model's prediction in the backtest (so selection judges what is delivered), to every model column and to the final ensemble; the output contract rejects any value below it. The input history keeps its negative values.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Which sanity checks run on the final forecasts?</summary>
+        <div class="a"><ul>
+          <li><b>outlier</b>: a forecast step more than <span class="sv" data-s="forecast_check_threshold">5</span> robust standard deviations from its neighbouring steps (spread taken from the history, floored at 1% of the series' median level).</li>
+          <li><b>total_change</b>: forecast total vs the same number of periods before the cutoff, more than <span class="sv" data-s="forecast_check_max_ratio">3</span>&times; up or down.</li>
+          <li><b>start_jump</b>: the first 3 steps more than 3&times; off both the last 3 actuals and the same periods a season earlier.</li>
+          <li><b>zero</b>: an all-zero forecast after non-zero recent history.</li>
+        </ul><p><code>forecast_check_action</code> = <span class="sv" data-s="forecast_check_action">warn</span> (flag, still deliver; <code>raise</code> stops before writing anything). Flags appear in the Forecast tab and in <code>forecast_checks.csv</code>.</p>
+          <p class="where">Where: <code>forecast_checks.py</code>.</p></div>
+      </details>
+      <details class="faq">
+        <summary>What exactly goes to the platform?</summary>
+        <div class="a"><p><code>forecast_output.csv</code>, long format: <code>uuid, date, &lt;static columns&gt;, forecast</code>, one row per series and horizon date, final forecast only. An output contract checks columns and order, no empty or non-finite values, no duplicates, every expected series present with exactly the horizon dates, identifiers constant per series, nothing below the floor. Column names can be changed without code (<code>output_rename</code>).</p>
+          <p class="where">Where: <code>output.py</code>, <code>contracts/output_schema.py</code>.</p></div>
+      </details>
+    </div>
+
+    <div class="faq-group" data-title="Code design">
+      <h3 id="faq-design">Code design and reproducibility</h3>
+      <details class="faq">
+        <summary>What are the main design principles of the code?</summary>
+        <div class="a"><ul>
+          <li><b>Config-driven:</b> frequency, horizon, metric, model set and selection rule are config changes, never code changes.</li>
+          <li><b>Cutoff-driven:</b> one split function; cleaning and features are functions of the cutoff (no leakage by construction).</li>
+          <li><b>One model interface</b> (<code>models/base.py: BaseForecaster</code>): <code>fit(train)</code> / <code>predict(future)</code> on a panel, where <code>future</code> carries <code>horizon_step</code>, so no model knows the horizon or frequency. Third-party libraries sit behind adapters and are imported only at fit time. A new model = adapter + catalog entry; backtest, selection, report and timings pick it up automatically.</li>
+          <li><b>Contracts stop the run:</b> input, model frame, selection and output each have a contract; a breach raises <code>DataContractError</code> and nothing is written. Registry files are written atomically.</li>
+          <li><b>The report never runs a model:</b> it only reads saved files; it is one self-contained HTML file (no server, no external libraries), with the same data in <code>forecast_report_data.json</code> for a future web app.</li>
+        </ul></div>
+      </details>
+      <details class="faq">
+        <summary>Is a run reproducible and auditable?</summary>
+        <div class="a"><p><code>run-pipeline</code> (the production entry point) records every run in <code>runs/&lt;frequency&gt;/&lt;run id&gt;/</code>: <code>run.log</code>, <code>manifest.json</code> (resolved settings, step timings and errors, Python and library versions, an input fingerprint: SHA-256 and line count for files, query hash for SQL), a copy of the config folder and of every output. Seeds are fixed (boosting and forest regressors; Orbit 8888); the dependency versions are locked in <code>poetry.lock</code>. A failing step is recorded, later steps are marked skipped, the exit code is 1.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Why do StatsForecast models run on one core while the tree models use all cores?</summary>
+        <div class="a"><p>On Windows, StatsForecast's <code>n_jobs &gt; 1</code> starts new processes on every fit (~13 s each): monthly fits became 7-25&times; slower and the test suite 17 min instead of 3.5. LightGBM, XGBoost and scikit-learn use threads, with no start-up cost: all cores gave 1.2-2.5&times; speed-ups. Revisit StatsForecast parallelism with many long real series.</p></div>
+      </details>
+      <details class="faq">
+        <summary>How is the code tested?</summary>
+        <div class="a"><p>About 660 pytest tests: unit tests per module and contract tests that prove each rule can fail (valid and invalid inputs), plus leakage tests on the features. The report's JavaScript has no unit tests; it is checked in a headless browser (<code>scripts/check_report_in_browser.py</code>: JS errors, phone width, every button). The library adapters were first tested against stand-ins and then confirmed on the real libraries in the first laptop run (2026-10-11).</p></div>
+      </details>
+    </div>
+
+    <div class="faq-group" data-title="Limitations">
+      <h3 id="faq-limits">Known limitations and open points</h3>
+      <details class="faq">
+        <summary>What has not been validated yet?</summary>
+        <div class="a"><ul>
+          <li><b>All results so far are on synthetic data</b> (trend + seasonality + noise, three predictability tiers). Real data (promotions, intermittent volumes, restatements) may favour different models; the pruning of variants, the folds, the outlier threshold (5) and the 10% safeguard are to be re-judged on it.</li>
+          <li>Date convention (period start vs end), country holidays and the platform's column names are still to be confirmed.</li>
+          <li>Selection noise: with few folds per series, many similar candidates overfit the choice; options noted are more folds, a minimum margin to switch models, or fewer candidates.</li>
+          <li>Static group statistics include the series itself (no leave-one-out), so a group with very few series is close to the series' own history.</li>
+          <li>No intermittent-demand models (e.g. Croston/TSB) yet; zeros are handled by the general models and the floor.</li>
+          <li>Frozen-models mode does not detect a changed <code>features.yaml</code>.</li>
+        </ul></div>
+      </details>
+    </div>
+    <div class="empty" id="faqNone" hidden>No question matches this search.</div>
+  </section>
+
   <footer id="foot"></footer>
 </main>
 
@@ -259,7 +664,8 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const $ = (id) => document.getElementById(id);
   const state = { filters: {}, mode: DIMS.length ? "aggregate" : "series", seriesId: null, view: "chart", models: new Set(), final: true, start: 0,
-    flaggedOnly: false, tab: "forecast", accSource: "backtest", accMetric: "WAPE", accPeriod: "native", accOrigin: "all", accGroup: "total" };
+    flaggedOnly: false, tab: "forecast", accSource: "backtest", accMetric: "WAPE", accPeriod: "native", accOrigin: "all", accGroup: "total",
+    modSort: "perf", modDir: 1 };
   const ACC = DATA.accuracy || null;
   // the model list of the "Forecast lines" menu: models in the forecast and/or in the accuracy data
   const MODEL_NAMES = [...new Set([...(META.model_names || []), ...((ACC && ACC.models) || [])])];
@@ -591,6 +997,11 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
     document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === state.tab)));
     $("tabForecast").hidden = state.tab !== "forecast";
     $("tabAccuracy").hidden = state.tab !== "accuracy";
+    $("tabModels").hidden = state.tab !== "models";
+    $("modelField").hidden = !MODEL_NAMES.length || state.tab === "models";
+    $("tabFaq").hidden = state.tab !== "faq";
+    $("controls").hidden = state.tab === "faq";  // the filters do not apply to the FAQ
+    if (state.tab === "faq") { drawFaq(); return; }
     const c = compute();
     document.querySelectorAll("#mode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
     document.querySelectorAll("#viewseg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
@@ -599,6 +1010,7 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
     const m = matching();
     $("count").textContent = m.length + " of " + SERIES.length + " series selected" +
       (CHECKS_RAN ? " \u00b7 " + N_FLAGGED + " flagged by the checks" : "");
+    if (state.tab === "models") { if (c && state.mode === "series") fillSeriesSelect(m); drawModels(); return; }
     if (!c) {
       $("title").textContent = "No series match this selection";
       $("subtitle").textContent = ""; $("kpis").textContent = ""; $("models").textContent = ""; $("notes").textContent = "";
@@ -885,6 +1297,7 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
       }
     };
     seg("accMetric", Object.keys(METRICS).map((k) => [k, k, METRICS[k].help]), "accMetric");
+    seg("modMetric", Object.keys(METRICS).map((k) => [k, k, METRICS[k].help]), "accMetric");
     seg("accPeriod", Object.entries(PERIODS).filter(([k, p]) => k === "native" || p.rank > NATIVE_RANK).map(([k, p]) => [k, p.label]), "accPeriod");
     seg("accGroup", [["total", "Total"], ...DIMS.map((d) => [d, "By " + d]), ["series", "By series"]], "accGroup");
     document.querySelectorAll("#accSource button").forEach((b) => b.addEventListener("click", () => { state.accSource = b.dataset.v; state.accOrigin = "all"; refresh(); }));
@@ -995,6 +1408,225 @@ const DATA = /*__GTS_REPORT_DATA__*/null;
     if (state.accPeriod !== "native") notes.push("The first and last " + PERIODS[state.accPeriod].label.toLowerCase() + " can be only partly covered by the forecasts; actuals and forecasts always cover the same dates.");
     if (ACC.note) notes.push(ACC.note + ".");
     $("accNotes").textContent = notes.join(" ");
+  }
+
+  /* ---------- models tab ---------- */
+  const MS = DATA.model_summary || null;
+  const MS_BY_NAME = new Map(((MS && MS.models) || []).map((x) => [x.name, x]));
+  // Backtest error of every model (and the final forecast) over the selected series. Each model is
+  // scored only on the values it has a forecast for; actuals and forecasts are summed per fold and date.
+  function modelScores() {
+    const src = ACC && ACC.sources.backtest;
+    if (!src) return null;
+    const rows = accRows(src, false), keys = [FKEY, ...ACC.models], out = {};
+    for (const k of keys) out[k] = { cells: new Map(), have: 0 };
+    for (const r of rows) {
+      const a = src.a[r];
+      if (a == null) continue;
+      const ck = src.o[r] + "|" + src.d[r];
+      for (const k of keys) {
+        const v = src.f[k] ? src.f[k][r] : null;
+        if (v == null) continue;
+        const o = out[k];
+        let c = o.cells.get(ck);
+        if (!c) { c = { a: 0, f: { [k]: 0 } }; o.cells.set(ck, c); }
+        c.a += a; c.f[k] += v; o.have++;
+      }
+    }
+    const total = rows.filter((r) => src.a[r] != null).length;
+    for (const k of keys) out[k] = { val: metricOf([...out[k].cells.values()], k), have: out[k].have, total };
+    return out;
+  }
+  // background from green (t = 0, best) through none to red (t = 1, worst)
+  function shade(t) {
+    if (t == null) return "";
+    const p = Math.round(Math.abs(1 - 2 * t) * 45);
+    return "background:color-mix(in srgb, var(" + (t < 0.5 ? "--good" : "--bad") + ") " + p + "%, transparent)";
+  }
+  // position of each value among the others (0 = lowest, 1 = highest); colours by rank, so one very
+  // slow or very bad model does not wash out the differences between the rest
+  function ranks(entries) {
+    const vals = entries.filter((e) => e.v != null && isFinite(e.v)).sort((x, y) => x.v - y.v);
+    const out = new Map();
+    vals.forEach((e, i) => out.set(e.k, vals.length > 1 ? i / (vals.length - 1) : 0.5));
+    return out;
+  }
+  const fmtSec = (s) => (s == null ? "–" : s >= 60 ? (s / 60).toFixed(1) + " min" : s >= 10 ? s.toFixed(0) + " s" : s >= 1 ? s.toFixed(1) + " s" : s.toFixed(2) + " s");
+
+  function drawModels() {
+    document.querySelectorAll("#modMetric button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === state.accMetric)));
+    const m = matching(), single = state.mode === "series";
+    const s = single ? m.find((x) => x.id === state.seriesId) || m[0] : null;
+    $("modTitle").textContent = "Models · " + (single ? (s ? label(s) : "no series") : titleText());
+    $("modSub").textContent = "Backtest " + state.accMetric + " of every model for " + (single ? "this series" : "the " + m.length + " selected series added up") +
+      ", and the mean run time of each model per backtest fold (fit + predict, the same for every selection). Click a column header to sort.";
+    const scores = m.length ? modelScores() : null;
+    const names = [...new Set([...((MS && MS.models) || []).map((x) => x.name), ...((ACC && ACC.models) || [])])];
+    if (!names.length) {
+      $("modTableWrap").innerHTML = '<div class="empty">No model data: run the backtest and build the report again.</div>';
+      $("modNotes").textContent = ""; drawUnused(); return;
+    }
+    const scoreOf = (v) => (v == null || !isFinite(v) ? null : state.accMetric === "Bias" ? Math.abs(v) : v);
+    const rows = names.map((name) => {
+      const sc = scores && scores[name], ms = MS_BY_NAME.get(name) || {};
+      let used = null, usedSort = null;
+      if (single && s) { const e = s.models.find((x) => x.name === name); used = e ? Math.round(e.weight * 100) + "%" : "–"; usedSort = e ? e.weight : 0; }
+      else if (!single) { const k = m.filter((x) => x.models.some((y) => y.name === name)).length; used = k + " / " + m.length; usedSort = k; }
+      return { name, val: sc ? sc.val : null, score: scoreOf(sc ? sc.val : null), have: sc ? sc.have : 0, total: sc ? sc.total : 0,
+        sec: ms.seconds ?? null, ms, used, usedSort };
+    });
+    const perfT = ranks(rows.map((r) => ({ k: r.name, v: r.score }))), timeT = ranks(rows.map((r) => ({ k: r.name, v: r.sec })));
+    const sortVal = { name: (r) => r.name.toLowerCase(), perf: (r) => r.score, time: (r) => r.sec, used: (r) => r.usedSort }[state.modSort];
+    rows.sort((x, y) => {
+      const a = sortVal(x), b = sortVal(y);
+      if (a == null || b == null) return a == null && b == null ? 0 : a == null ? 1 : -1;  // missing values last
+      return (a < b ? -1 : a > b ? 1 : 0) * state.modDir;
+    });
+    const head = (key, text, title) => {
+      const on = state.modSort === key;
+      return "<th" + (on ? ' aria-sort="' + (state.modDir > 0 ? "ascending" : "descending") + '"' : "") + ' title="' + esc(title) + '"><button type="button" data-sort="' + key + '">' +
+        esc(text) + '<span class="arr">' + (on ? (state.modDir > 0 ? "▲" : "▼") : "") + "</span></button></th>";
+    };
+    let h = '<table class="mod-table"><thead><tr>' + head("name", "Model", "Sort by name") +
+      head("perf", state.accMetric, METRICS[state.accMetric].help + (state.accMetric === "Bias" ? " (sorted and coloured by distance from 0)" : "") + ". Lower is better.") +
+      head("time", "Run time per fold", "Mean fit + predict seconds per backtest fold") +
+      head("used", single ? "Weight in final" : "In final forecast of", single ? "The model's weight in this series' final forecast" : "Selected series whose final forecast uses the model") + "</tr></thead><tbody>";
+    if (scores) {
+      const f = scores[FKEY];
+      h += '<tr class="total"><td>' + FINAL + "</td><td>" + fmtMetric(f.val) + "</td><td>–</td><td></td></tr>";
+    }
+    for (const r of rows) {
+      const cov = r.total && r.have < r.total ? '<span class="cov" title="Share of the actual values this model has a forecast for (too little history in some series or folds)">' + Math.round((100 * r.have) / r.total) + "% of values</span>" : "";
+      const t = r.ms;
+      const timeTip = t.n_folds ? "fit " + fmtSec(t.fit_seconds) + " + predict " + fmtSec(t.predict_seconds) + " · " + t.n_folds + " fold(s) · " + fmtNum(t.n_series) + " series per fold" : "status: " + (t.status || "no timing");
+      h += "<tr><td>" + esc(r.name) + "</td>" +
+        '<td style="' + (r.val == null ? "" : shade(perfT.get(r.name))) + '"' + (r.val == null ? ' class="off"' : "") + ">" + fmtMetric(r.val) + cov + "</td>" +
+        '<td style="' + shade(timeT.get(r.name)) + '" title="' + esc(timeTip) + '"' + (r.sec == null ? ' class="off"' : "") + ">" + fmtSec(r.sec) + "</td>" +
+        "<td" + (r.usedSort ? "" : ' class="off"') + ">" + (r.used ?? "–") + "</td></tr>";
+    }
+    $("modTableWrap").innerHTML = h + "</tbody></table>";
+    $("modTableWrap").querySelectorAll("th button").forEach((b) => b.addEventListener("click", () => {
+      const k = b.dataset.sort;
+      if (state.modSort === k) state.modDir = -state.modDir; else { state.modSort = k; state.modDir = 1; }
+      refresh();
+      const again = $("modTableWrap").querySelector('th button[data-sort="' + k + '"]'); if (again) again.focus();
+    }));
+    const notes = ["Colours show each model's place among the models: green = best / fastest, red = worst / slowest."];
+    if (!scores) notes.push(m.length ? "No backtest forecasts in this report, so no accuracy per model." : "No series match this selection.");
+    else notes.push("Accuracy comes from the backtest folds" + (ACC.backtest_file ? " (" + ACC.backtest_file + ")" : "") + "; each model is scored only on the values it has a forecast for (see \"% of values\").");
+    if (ACC && ACC.note) notes.push(ACC.note + ".");
+    if (MS && MS.timings_file) notes.push("Run times from " + MS.timings_file + ".");
+    $("modNotes").textContent = notes.join(" ");
+    drawUnused();
+  }
+
+  // Models that are never in any series' own top N: candidates to drop from the catalog.
+  function drawUnused() {
+    const box = $("modUnused");
+    if (!MS || !MS.has_ranks) { box.innerHTML = '<div class="okbox">No backtest scores found, so it is not known which models are in the top of a series.</div>'; return; }
+    const n = MS.top_n, ran = MS.models.filter((x) => x.n_folds > 0);
+    const unused = ran.filter((x) => x.top_n_series === 0 && x.used_series === 0);
+    const viaMix = ran.filter((x) => x.top_n_series === 0 && x.used_series > 0);
+    const notRun = MS.models.filter((x) => x.n_folds === 0);
+    const item = (x) => "<li><b>" + esc(x.name) + "</b>" + (x.seconds != null ? " · " + fmtSec(x.seconds) + " per fold" : "") +
+      (x.name === "naive" ? " · reference model for the selection, keep it" : "") + "</li>";
+    let h = "";
+    if (unused.length) {
+      const saved = unused.reduce((t, x) => t + (x.seconds || 0), 0);
+      h += '<div class="warnbox"><b>' + unused.length + " model" + (unused.length > 1 ? "s are" : " is") + " never in the top " + n + " of any series</b> and not used in any final forecast. " +
+        "Removing " + (unused.length > 1 ? "them" : "it") + " from config/models.yaml would save about " + fmtSec(saved) + " per backtest fold without changing the forecasts." +
+        "<ul>" + unused.map(item).join("") + "</ul></div>";
+    }
+    if (viaMix.length) {
+      h += '<div class="warnbox"><b>' + viaMix.length + " model" + (viaMix.length > 1 ? "s are" : " is") + " never in the top " + n + " of any single series</b> but still used through the common mix of the blend rule (the best models over all series). " +
+        "Removing " + (viaMix.length > 1 ? "them" : "it") + " would change the final forecasts." + "<ul>" + viaMix.map((x) => item(x).replace("</li>", " · in " + x.used_series + " final forecasts</li>")).join("") + "</ul></div>";
+    }
+    if (notRun.length) {
+      h += '<div class="warnbox"><b>Did not run in the backtest</b> (failed, skipped or no series long enough):<ul>' +
+        notRun.map((x) => "<li><b>" + esc(x.name) + "</b> · " + esc(x.status) + "</li>").join("") + "</ul></div>";
+    }
+    if (!h) h = '<div class="okbox">Every model is in the top ' + n + " of at least one series.</div>";
+    box.innerHTML = h + '<div class="note">Over all series, from the selection' + (MS.timings_file ? " and " + esc(MS.timings_file) : "") + "; the filters above do not change this list.</div>";
+  }
+
+  /* ---------- FAQ tab ---------- */
+  const SET = DATA.settings || null;
+  const SETTING_ROWS = [  // key, what it means
+    ["frequency", "data frequency"], ["horizon", "forecast horizon (periods)"], ["season_length", "season length (periods)"],
+    ["min_series_length", "fewer observations: last-value forecast"], ["max_fill_periods", "longest gap that is filled"],
+    ["fallback", "forecast of series with longer gaps"], ["outlier_method", "outlier detection"],
+    ["outlier_threshold", "robust standard deviations to flag"], ["outlier_action", "replacement of flagged points"],
+    ["outlier_max_share", "series left alone above this share flagged"], ["metric", "metric that ranks the models"],
+    ["n_folds", "backtest folds"], ["backtest_step", "periods between fold cutoffs"], ["top_n", "models per series' own mix"],
+    ["ensemble_weights", "weights inside a mix"], ["selection_rule", "selection rule"], ["blend_share", "weight of the common mix"],
+    ["short_series_models", "short-series ensemble candidates"], ["short_series_n", "models in the short-series ensemble"],
+    ["static_columns", "identifier columns"], ["explanatory_columns", "explanatory columns in the input"],
+    ["known_future_columns", "explanatory columns known in the future (used)"], ["fast_only", "slow models (Prophet, Orbit) left out"],
+    ["forecast_mode", "how the forecast gets its models"], ["forecast_models", "models run by the forecast"],
+    ["forecast_floor", "lowest allowed forecast"], ["forecast_check_action", "forecast sanity checks"],
+    ["forecast_check_threshold", "outlier check threshold"], ["forecast_check_max_ratio", "total_change / start_jump ratio"],
+    ["on_model_error", "when a model fails"],
+  ];
+  const fmtSetting = (k, v) => {
+    if (v == null) return k === "forecast_floor" ? "none" : "–";
+    if (Array.isArray(v)) return v.length ? v.join(", ") : "none";
+    if (k === "outlier_max_share") return Math.round(v * 100) + "%";
+    if (typeof v === "boolean") return v ? "true" : "false";
+    return String(v);
+  };
+  let faqBuilt = false;
+  function drawFaq() {
+    if (faqBuilt) return;
+    faqBuilt = true;
+    // values quoted in the answers: the text in the template holds the defaults
+    if (SET) document.querySelectorAll("#tabFaq [data-s]").forEach((el) => {
+      const k = el.dataset.s;
+      if (k in SET) el.textContent = fmtSetting(k, SET[k]);
+    });
+    const box = $("faqSettings");
+    if (!SET) box.innerHTML = '<p>This report was built without its settings (an older report pipeline); the answers quote the defaults.</p>';
+    else {
+      let h = '<table class="settings-table"><thead><tr><th>Setting</th><th>Value</th><th>Meaning</th></tr></thead><tbody>';
+      for (const [k, text] of SETTING_ROWS) if (k in SET) h += "<tr><td><code>" + k + "</code></td><td><b>" + esc(fmtSetting(k, SET[k])) + "</b></td><td>" + esc(text) + "</td></tr>";
+      h += "</tbody></table>";
+      const sel = SET.selection || {};
+      if (Object.keys(sel).length) {
+        h += '<p style="margin-top:10px"><b>Selection used by the forecast</b> (made by the backtest of ' + esc((sel.created || "").slice(0, 10) || "?") + "): " +
+          ["metric", "n_folds", "top_n", "ensemble_weights", "selection_rule", "horizon", "data_cutoff"].filter((k) => sel[k] != null).map((k) => "<code>" + k + "</code> " + esc(String(sel[k]))).join(" · ") +
+          (sel.selection_rule == null ? " · <code>selection_rule</code> per_series (made before the blend rule existed)" : "") + ".</p>";
+      }
+      box.innerHTML = h;
+    }
+    $("faqToc").innerHTML = [...document.querySelectorAll("#tabFaq .faq-group")].map((g) => {
+      const h3 = g.querySelector("h3");
+      return '<a href="#' + h3.id + '">' + esc(g.dataset.title) + "</a>";
+    }).join("");
+    $("faqToc").querySelectorAll("a").forEach((a) => a.addEventListener("click", (e) => {
+      e.preventDefault();
+      const target = $(a.getAttribute("href").slice(1));
+      target.parentElement.querySelectorAll("details.faq").forEach((d) => { d.open = true; });
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }));
+    $("faqSearch").addEventListener("input", filterFaq);
+    $("faqOpen").addEventListener("click", () => document.querySelectorAll("#tabFaq details.faq").forEach((d) => { if (!d.hidden) d.open = true; }));
+    $("faqClose").addEventListener("click", () => document.querySelectorAll("#tabFaq details.faq").forEach((d) => { d.open = false; }));
+    filterFaq();
+  }
+  // Shows the questions whose question or answer contains every word typed; opens them while searching.
+  function filterFaq() {
+    const words = $("faqSearch").value.toLowerCase().split(/\s+/).filter(Boolean);
+    const all = [...document.querySelectorAll("#tabFaq details.faq")];
+    let shown = 0;
+    for (const d of all) {
+      const text = d.textContent.toLowerCase();
+      const hit = words.every((w) => text.includes(w));
+      d.hidden = !hit;
+      if (words.length) d.open = hit;
+      if (hit) shown++;
+    }
+    document.querySelectorAll("#tabFaq .faq-group").forEach((g) => { g.hidden = !g.querySelector("details.faq:not([hidden])"); });
+    $("faqNone").hidden = shown > 0;
+    $("faqCount").textContent = words.length ? shown + " of " + all.length + " questions match." : all.length + " questions in " + document.querySelectorAll("#tabFaq .faq-group").length + " sections. Click a question to open it.";
   }
 
   function init() {
