@@ -112,7 +112,8 @@ it, marks the rest skipped, and exits 1.
   platform output in long format (`forecast_output.csv`).
 
 ## Two traps
-- **Git: this folder has its own repo** (set up 2026-10-11, branch `main`, no remote yet). There is
+- **Git: this folder has its own repo** (set up 2026-10-11, branch `main`, remote `origin` =
+  GitHub `xerifejeremias/gts-forecaster`; push only when the user asks). There is
   also an unrelated repo rooted at `C:\Users\Admin`; it does not track project files. Commit only
   when the user asks. Never commit real (production) data.
 - **The "Folder layout" sketch in OVERVIEW.md is partly aspirational.** `io/writers.py`,
